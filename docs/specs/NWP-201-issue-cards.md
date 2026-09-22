@@ -137,7 +137,8 @@ Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes 
 ## Fixed in passing
 
 - `src/data/metrics.ts` `dailyVolume` bucketed by server-local date, summed floats, and reported refunds at the payment's full amount on the payment's date. It now uses `utcDayKey`, integer minor units, and `store.refunds`, covered by `src/data/metrics.test.ts`.
-- Not fixed here: `sortPayments`' string compare and the payments page's hand-built filters belong to NWP-101, and the overview's cross-currency totals need a product decision.
+- `src/data/metrics.ts` `headlineMetrics` and `dailyVolume` filtered `store.payments` by hand, a second payment lookup beside the builder (`CLAUDE.md` convention 3). They now call `filterPayments`. `src/components/ui/overview/MetricsCards.tsx` rebuilt the authorization fraction from the rounded rate. It now uses the `authorizedCount` that the rate comes from.
+- Not fixed here: `sortPayments`' string compare and the payments page's hand-built filters belong to NWP-101, the overview's cross-currency totals need a product decision, and `src/data/analytics.ts` and `src/app/overview/page.tsx` still read `store.payments` directly (left out to keep the diff reviewable).
 
 ## Open questions
 
