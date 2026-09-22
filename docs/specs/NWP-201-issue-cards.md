@@ -57,9 +57,9 @@ Unit tests cover Luhn, the BIN, reveal-once, each rejection and the transitions;
 
 ## Fixed in passing
 
-- `metrics.ts` `dailyVolume` used local-date buckets, float sums and refunds taken from payments. It now uses UTC, minor units and `store.refunds`.
+- `metrics.ts` `dailyVolume` used local-date buckets, float sums and refunds taken from payments. It now uses UTC, minor units, `filterPayments` and `store.refunds`.
 - `sortPayments` compared amounts as strings; it now compares numbers. Hand-built filters are left to NWP-101.
-- Left for later: the overview's cross-currency totals, and metrics that read `store.payments` directly.
+- Left for later: the overview's cross-currency totals, and other metrics that read `store.payments` directly.
 
 ## Out of scope
 

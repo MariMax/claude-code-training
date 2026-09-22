@@ -20,7 +20,7 @@ import { Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
-/** Radix Select cannot hold an empty value, so "no lock" gets a sentinel. */
+/** Radix Select has no empty value, so "no lock" is a sentinel. */
 const NO_LOCK = "none"
 const EMPTY = { nickname: "", merchantId: "", limit: "", category: NO_LOCK }
 
@@ -100,7 +100,7 @@ export function IssueCardDrawer(props: {
     setLimitError(null)
     if (!form.nickname.trim()) return setError("Nickname is required.")
     if (!currency) return setError("Choose a merchant.")
-    // Converted once, here, at the boundary. The server re-validates it.
+    // Converted once, at the boundary; the server re-validates.
     const spendLimit = parseAmountToMinorUnits(form.limit)
     if (!spendLimit) return setLimitError("Enter an amount like 250.00, greater than zero.")
 

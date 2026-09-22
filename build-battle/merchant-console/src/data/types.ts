@@ -85,7 +85,6 @@ export interface PaymentFilters {
 
 export type CardStatus = "active" | "frozen" | "cancelled"
 
-/** Categories a card can be locked to at issue. */
 export type CardCategory = "advertising" | "software" | "contractor_tools" | "travel" | "office_supplies"
 
 /** `at` is ISO 8601, always UTC. */

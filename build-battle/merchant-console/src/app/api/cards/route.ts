@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
   const result = issueCardOnce(parsed.value, key.value)
   if (result.replayed) {
-    const error = "This card was already issued by an earlier request. Its number is not shown again."
+    const error = "This card was already issued. Its number is not shown again."
     return NextResponse.json({ error, card: result.card }, { status: 409 })
   }
 

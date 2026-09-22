@@ -20,7 +20,7 @@ interface Store {
   disputes: Dispute[]
   payouts: Payout[]
   cards: VirtualCard[]
-  /** Idempotency key → id of the card that key issued. */
+  /** Idempotency key → id of the card it issued. */
   cardIssueKeys: Map<string, string>
 }
 

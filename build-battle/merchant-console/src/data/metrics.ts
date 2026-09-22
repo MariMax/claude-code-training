@@ -1,5 +1,6 @@
 import { lastUtcDays, utcDayKey } from "@/lib/dates"
 import { GENERATED_AT } from "./generate"
+import { filterPayments } from "./queries"
 import { store } from "./store"
 
 /**
@@ -20,12 +21,12 @@ export function dailyVolume(days = 30): DailyVolume[] {
     keys.map((date) => [date, { date, captured: 0, refunded: 0 }]),
   )
 
-  // UTC days, integer minor units.
-  for (const payment of store.payments) {
+  // UTC days, minor units, via the one query builder.
+  for (const payment of filterPayments({ status: "captured" })) {
     const bucket = buckets.get(utcDayKey(payment.createdAt))
-    if (bucket && payment.status === "captured") bucket.captured += payment.amount
+    if (bucket) bucket.captured += payment.amount
   }
-  // Refunds on the day, and for the amount, they happened.
+  // Refunds on their own date and for their own amount.
   for (const refund of store.refunds) {
     const bucket = buckets.get(utcDayKey(refund.createdAt))
     if (bucket) bucket.refunded += refund.amount
