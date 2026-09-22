@@ -5,7 +5,7 @@
 
 **Ticket:** [NWP-201](../tickets/NWP-201.md)
 **Author:** Maxim
-**Status:** building
+**Status:** done
 
 ## Problem
 
@@ -76,16 +76,17 @@ Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes 
 | `src/lib/cards.test.ts` | add | Luhn validity, the `4242` prefix, 16 digits, the mask, and every legal and illegal transition |
 | `src/data/store.ts` | change | Add a `cards: VirtualCard[]` slice |
 | `src/data/generate.ts` | change | `generateCards()`: fixed seed cards that don't touch `rand()`, so payments stay identical |
-| `src/data/cards.ts` | add | `parseIssueCard`, `issueCard`, `listCards`, `cardById`, `transitionCard` |
+| `src/data/cards.ts` | add | `parseIssueCard` (including the optional `categoryLock` allowlist), `parseIdempotencyKey`, `issueCard`, `issueCardOnce`, `listCards`, `cardById`, `transitionCard` |
 | `src/data/cards.test.ts` | add | Every validation rejection and the reveal-once behaviour (the number is never on the stored record) |
-| `src/app/api/cards/route.ts` | add | GET list, POST issue |
+| `src/app/api/cards/route.ts` | add | GET list, POST issue, with an optional `Idempotency-Key` header (a replay returns 409 without the number) |
 | `src/app/api/cards/[id]/route.ts` | add | GET detail, PATCH status |
 | `src/components/ui/payments/StatusBadge.tsx` | change | Add `active`, `frozen` and `cancelled` labels, dots and variants |
 | `src/app/siteConfig.ts`, `src/components/ui/navigation/AppSidebar.tsx` | change | Cards nav entry |
 | `src/app/cards/page.tsx` | add | Card list and empty state |
 | `src/app/cards/issue-card-drawer.tsx` | add | Client form, currency mismatch warning, one-time reveal |
 | `src/app/cards/card-actions.tsx` | add | Client freeze, unfreeze and cancel buttons, and the error message |
-| `src/app/cards/[id]/page.tsx` | add | Detail, spend against the limit with a `<progress>` bar (amber past 80%), history |
+| `src/app/cards/[id]/page.tsx` | add | Detail, category lock, spend against the limit with a `<progress>` bar (amber past 80%), history |
+| `src/app/cards/[id]/not-found.tsx`, `src/app/cards/error.tsx` | add | Written not-found and error pages instead of the framework defaults |
 
 ## Plan
 
@@ -114,19 +115,22 @@ Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes 
 | Reveal once, mask forever | `src/data/cards.test.ts`: the stored record has no number field. curl: grep the list and detail output for `\d{16}` and find nothing. Browser: reopen the drawer and the number is gone |
 | Server-side validation | `src/data/cards.test.ts`, plus curl for a missing merchant, `0`, `-1`, `5000001`, `"JPY"` and `2500.5`, each returning 400 |
 | State machine (stretch) | Transition tests, curl PATCH on a cancelled card returning 409, and clicking through in the browser |
+| Category lock (stretch) | `src/data/cards.test.ts` allowlist cases, curl with `"travel"` (201) and `"gambling"` (400), and the Category column and detail field in the browser |
+| Double-submit guard (extra) | `issueCardOnce` tests, and curl sending the same `Idempotency-Key` twice (201, then 409 without a number, one card in the list) |
 | Card history (extra) | Detail page after freeze and unfreeze shows three events in the merchant's timezone |
 
 ## Risks
 
 - **Seed drift.** Pulling from the shared `rand()` would reshuffle every payment and break the other tickets' reproductions. Seed cards are fixed values and never call `rand()`.
 - **PAN leaking through logs or state.** No `console.log` anywhere near `issueCard`, the reveal lives in local component state only, and it is cleared on close.
-- **Double-submit.** A double click could issue two cards. The submit button is disabled while the request is in flight. A server-side idempotency key was considered and deferred.
+- **Double-submit.** A double click could issue two cards. The submit button is disabled while the request is in flight, and the server issues at most one card per `Idempotency-Key` (one key per form session). A replay gets 409 and the original card, never the number, so the reveal stays one-time.
 - **Time.** Stop after step 8. Anything unfinished is left blank in the PR.
 
 ## Out of scope
 
 - Persistence (NWP-203), auth and roles, network calls, and editing a limit (NWP-202).
-- Stretch items not chosen in planning: the merchant category lock and a server-side idempotency key. (The amber spend bar was cheap once the detail page existed, so it was built after all.)
+- Enforcing the category lock on real spend. There is no card network (see above), so the lock is recorded and displayed, not applied to authorizations.
+- Added in a second pass after the first PR: the amber spend bar, the merchant category lock, the server-side idempotency key, and written not-found and error pages.
 
 ## Open questions
 
