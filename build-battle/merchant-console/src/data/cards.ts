@@ -144,6 +144,42 @@ export function issueCard(input: IssueCardInput): {
   return { card, number }
 }
 
+/** Client-generated, e.g. a UUID. Anything else is rejected, not stored. */
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,100}$/
+
+export function parseIdempotencyKey(header: string | null): Parsed<string | null> {
+  if (header === null) return { ok: true, value: null }
+  if (!IDEMPOTENCY_KEY.test(header)) {
+    return {
+      ok: false,
+      error: "Idempotency-Key must be 8 to 100 letters, digits, dashes, or underscores.",
+    }
+  }
+  return { ok: true, value: header }
+}
+
+export type IssueOnceResult =
+  | { replayed: false; card: VirtualCard; number: string }
+  | { replayed: true; card: VirtualCard }
+
+/**
+ * Issues at most one card per idempotency key, so a double click or a retried
+ * request cannot create a second card. A replay returns the original card but
+ * never the number again: the reveal happened on the first response.
+ */
+export function issueCardOnce(
+  input: IssueCardInput,
+  key: string | null,
+): IssueOnceResult {
+  const previous = key ? store.cardIssueKeys.get(key) : undefined
+  const existing = previous ? cardById(previous) : null
+  if (existing) return { replayed: true, card: existing }
+
+  const { card, number } = issueCard(input)
+  if (key) store.cardIssueKeys.set(key, card.id)
+  return { replayed: false, card, number }
+}
+
 export type TransitionResult =
   | { ok: true; card: VirtualCard }
   | { ok: false; reason: "not_found" | "illegal"; error: string }

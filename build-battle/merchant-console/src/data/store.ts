@@ -20,6 +20,8 @@ interface Store {
   disputes: Dispute[]
   payouts: Payout[]
   cards: VirtualCard[]
+  /** Idempotency key → id of the card that key issued. */
+  cardIssueKeys: Map<string, string>
 }
 
 declare global {
@@ -36,6 +38,7 @@ function createStore(): Store {
     disputes,
     payouts,
     cards: generateCards(),
+    cardIssueKeys: new Map(),
   }
 }
 

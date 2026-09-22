@@ -3,9 +3,11 @@ import { describe, expect, it } from "vitest"
 import {
   cardById,
   issueCard,
+  issueCardOnce,
   listCards,
   MAX_SPEND_LIMIT,
   parseCardStatus,
+  parseIdempotencyKey,
   parseIssueCard,
   transitionCard,
 } from "./cards"
@@ -138,5 +140,36 @@ describe("transitionCard", () => {
       ok: false,
       reason: "not_found",
     })
+  })
+})
+
+describe("issueCardOnce", () => {
+  it("issues one card per key and never reveals the number twice", () => {
+    const first = issueCardOnce(input, "key-double-click-1")
+    const again = issueCardOnce(input, "key-double-click-1")
+
+    expect(first.replayed).toBe(false)
+    expect(again).toEqual({ replayed: true, card: first.card })
+    expect("number" in again).toBe(false)
+    expect(listCards().filter((c) => c.id === first.card.id)).toHaveLength(1)
+  })
+
+  it("issues separately without a key or with a different key", () => {
+    const a = issueCardOnce(input, null)
+    const b = issueCardOnce(input, null)
+    const c = issueCardOnce(input, "key-other-request")
+    expect(new Set([a.card.id, b.card.id, c.card.id]).size).toBe(3)
+  })
+})
+
+describe("parseIdempotencyKey", () => {
+  it("allows an absent key and a UUID", () => {
+    expect(parseIdempotencyKey(null)).toEqual({ ok: true, value: null })
+    expect(parseIdempotencyKey(crypto.randomUUID()).ok).toBe(true)
+  })
+
+  it("rejects short or unsafe keys", () => {
+    expect(parseIdempotencyKey("abc").ok).toBe(false)
+    expect(parseIdempotencyKey("key with spaces!").ok).toBe(false)
   })
 })

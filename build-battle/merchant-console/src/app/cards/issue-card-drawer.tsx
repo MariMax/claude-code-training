@@ -56,6 +56,9 @@ export function IssueCardDrawer({
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [issued, setIssued] = useState<Issued | null>(null)
+  // One key per form session: a retry or a double click reuses it, so the
+  // server issues at most one card. A fresh form gets a fresh key.
+  const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
 
   const merchant = merchants.find((m) => m.id === merchantId)
   const mismatch = merchant && currency && currency !== merchant.currency
@@ -69,6 +72,7 @@ export function IssueCardDrawer({
     setLimitError(null)
     setError(null)
     setIssued(null)
+    setIdempotencyKey(crypto.randomUUID())
   }
 
   const onOpenChange = (next: boolean) => {
@@ -102,7 +106,10 @@ export function IssueCardDrawer({
     try {
       const response = await fetch("/api/cards", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": idempotencyKey,
+        },
         body: JSON.stringify({
           nickname,
           merchantId,
