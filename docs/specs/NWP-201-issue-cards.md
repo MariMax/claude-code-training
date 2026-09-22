@@ -134,6 +134,11 @@ Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes 
 - Enforcing the category lock on real spend. There is no card network (see above), so the lock is recorded and displayed, not applied to authorizations.
 - Added in a second pass after the first PR: the amber spend bar, the merchant category lock, the server-side idempotency key, and written not-found and error pages. A third pass enforced the merchant currency on the server and removed invented seed spend.
 
+## Fixed in passing
+
+- `src/data/metrics.ts` `dailyVolume` bucketed by server-local date, summed floats, and reported refunds at the payment's full amount on the payment's date. It now uses `utcDayKey`, integer minor units, and `store.refunds`, covered by `src/data/metrics.test.ts`.
+- Not fixed here: `sortPayments`' string compare and the payments page's hand-built filters belong to NWP-101, and the overview's cross-currency totals need a product decision.
+
 ## Open questions
 
 - The mask. The ticket writes `•••• 4242`, and the rule says to store the last four. This spec reads it as `•••• <last4>`, which matches `•••• ${last4}` in `src/app/payments/page.tsx:123`, rather than always showing the BIN.
