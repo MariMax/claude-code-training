@@ -1,11 +1,12 @@
 import {
+  CARD_CATEGORIES,
   canTransition,
   eventForTransition,
   generateCardNumber,
 } from "@/lib/cards"
 import { merchantById } from "./merchants"
 import { store } from "./store"
-import { CardStatus, Currency, VirtualCard } from "./types"
+import { CardCategory, CardStatus, Currency, VirtualCard } from "./types"
 
 export const CARD_CURRENCIES: readonly Currency[] = ["USD", "EUR", "GBP"]
 export const CARD_STATUSES: readonly CardStatus[] = ["active", "frozen", "cancelled"]
@@ -18,6 +19,7 @@ export interface IssueCardInput {
   merchantId: string
   spendLimit: number
   currency: Currency
+  categoryLock: CardCategory | null
 }
 
 export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
@@ -31,7 +33,7 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
   if (typeof body !== "object" || body === null) {
     return { ok: false, error: "Request body must be a JSON object." }
   }
-  const { nickname, merchantId, spendLimit, currency } = body as Record<
+  const { nickname, merchantId, spendLimit, currency, categoryLock } = body as Record<
     string,
     unknown
   >
@@ -72,6 +74,15 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
     return { ok: false, error: "Currency must be one of USD, EUR, or GBP." }
   }
 
+  // Optional: absent or null issues an unlocked card.
+  const category = categoryLock ?? null
+  if (category !== null && !CARD_CATEGORIES.includes(category as CardCategory)) {
+    return {
+      ok: false,
+      error: `Category must be one of ${CARD_CATEGORIES.join(", ")}, or omitted.`,
+    }
+  }
+
   return {
     ok: true,
     value: {
@@ -79,6 +90,7 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
       merchantId,
       spendLimit,
       currency: currency as Currency,
+      categoryLock: category as CardCategory | null,
     },
   }
 }
@@ -123,6 +135,7 @@ export function issueCard(input: IssueCardInput): {
     spendLimit: input.spendLimit,
     spent: 0,
     currency: input.currency,
+    categoryLock: input.categoryLock,
     status: "active",
     createdAt,
     events: [{ type: "issued", at: createdAt }],

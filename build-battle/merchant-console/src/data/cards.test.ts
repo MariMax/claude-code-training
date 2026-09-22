@@ -17,6 +17,8 @@ const valid = {
   currency: "USD",
 }
 
+const input = { ...valid, currency: "USD" as const, categoryLock: null }
+
 const errorFor = (body: unknown) => {
   const parsed = parseIssueCard(body)
   return parsed.ok ? null : parsed.error
@@ -26,8 +28,19 @@ describe("parseIssueCard", () => {
   it("accepts a valid request and trims the nickname", () => {
     expect(parseIssueCard({ ...valid, nickname: "  Ad spend  " })).toEqual({
       ok: true,
-      value: { ...valid, nickname: "Ad spend" },
+      value: { ...valid, nickname: "Ad spend", categoryLock: null },
     })
+  })
+
+  it("accepts an optional category lock from the allowlist", () => {
+    const parsed = parseIssueCard({ ...valid, categoryLock: "advertising" })
+    expect(parsed.ok && parsed.value.categoryLock).toBe("advertising")
+    expect(errorFor({ ...valid, categoryLock: null })).toBeNull()
+  })
+
+  it("rejects a category outside the allowlist", () => {
+    expect(errorFor({ ...valid, categoryLock: "gambling" })).toMatch(/category/i)
+    expect(errorFor({ ...valid, categoryLock: "" })).toMatch(/category/i)
   })
 
   it("rejects a missing or unknown merchant", () => {
@@ -80,7 +93,7 @@ describe("parseCardStatus", () => {
 
 describe("issueCard", () => {
   it("returns the full number once and stores only the last four", () => {
-    const { card, number } = issueCard({ ...valid, currency: "USD" })
+    const { card, number } = issueCard(input)
 
     expect(number).toMatch(/^4242\d{12}$/)
     expect(isValidLuhn(number)).toBe(true)
@@ -98,7 +111,7 @@ describe("issueCard", () => {
 
 describe("transitionCard", () => {
   it("walks active → frozen → active → cancelled and records each step", () => {
-    const { card } = issueCard({ ...valid, currency: "USD" })
+    const { card } = issueCard(input)
 
     expect(transitionCard(card.id, "frozen").ok).toBe(true)
     expect(transitionCard(card.id, "active").ok).toBe(true)
@@ -112,7 +125,7 @@ describe("transitionCard", () => {
   })
 
   it("refuses to bring a cancelled card back", () => {
-    const { card } = issueCard({ ...valid, currency: "USD" })
+    const { card } = issueCard(input)
     transitionCard(card.id, "cancelled")
 
     const result = transitionCard(card.id, "active")

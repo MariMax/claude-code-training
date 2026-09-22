@@ -19,11 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/Select"
-import type { Currency } from "@/data/types"
+import type { CardCategory, Currency } from "@/data/types"
+import { CARD_CATEGORIES, CARD_CATEGORY_LABELS } from "@/lib/cards"
 import { parseAmountToMinorUnits } from "@/lib/money"
 import { Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
+
+/** Radix Select cannot hold an empty value, so "no lock" gets a sentinel. */
+const NO_LOCK = "none"
 
 type MerchantOption = { id: string; name: string; currency: Currency }
 
@@ -47,6 +51,7 @@ export function IssueCardDrawer({
   const [merchantId, setMerchantId] = useState("")
   const [limit, setLimit] = useState("")
   const [currency, setCurrency] = useState<Currency | "">("")
+  const [category, setCategory] = useState<CardCategory | typeof NO_LOCK>(NO_LOCK)
   const [limitError, setLimitError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -60,6 +65,7 @@ export function IssueCardDrawer({
     setMerchantId("")
     setLimit("")
     setCurrency("")
+    setCategory(NO_LOCK)
     setLimitError(null)
     setError(null)
     setIssued(null)
@@ -97,7 +103,13 @@ export function IssueCardDrawer({
       const response = await fetch("/api/cards", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ nickname, merchantId, spendLimit, currency }),
+        body: JSON.stringify({
+          nickname,
+          merchantId,
+          spendLimit,
+          currency,
+          categoryLock: category === NO_LOCK ? null : category,
+        }),
       })
       const body = await response.json().catch(() => null)
       if (!response.ok || !body?.card || !body?.number) {
@@ -253,6 +265,37 @@ export function IssueCardDrawer({
                     will be issued in {currency}.
                   </p>
                 )}
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="card-category" className={labelClass}>
+                  Merchant category lock
+                </label>
+                <Select
+                  value={category}
+                  onValueChange={(value) =>
+                    setCategory(value as CardCategory | typeof NO_LOCK)
+                  }
+                >
+                  <SelectTrigger
+                    id="card-category"
+                    aria-describedby="card-category-hint"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NO_LOCK}>No lock</SelectItem>
+                    {CARD_CATEGORIES.map((code) => (
+                      <SelectItem key={code} value={code}>
+                        {CARD_CATEGORY_LABELS[code]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p id="card-category-hint" className="text-sm text-gray-500">
+                  Only spend in this category is allowed. Set at issue; it
+                  cannot be changed later.
+                </p>
               </div>
 
               {error && (

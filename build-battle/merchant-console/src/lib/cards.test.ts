@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
+  CARD_CATEGORIES,
+  CARD_CATEGORY_LABELS,
   canTransition,
   eventForTransition,
   generateCardNumber,
@@ -74,5 +76,14 @@ describe("status transitions", () => {
     expect(eventForTransition("active", "frozen")).toBe("frozen")
     expect(eventForTransition("frozen", "active")).toBe("unfrozen")
     expect(eventForTransition("frozen", "cancelled")).toBe("cancelled")
+  })
+})
+
+describe("card categories", () => {
+  it("labels every category in the allowlist", () => {
+    expect(CARD_CATEGORIES.length).toBeGreaterThan(0)
+    for (const category of CARD_CATEGORIES) {
+      expect(CARD_CATEGORY_LABELS[category]).toBeTruthy()
+    }
   })
 })

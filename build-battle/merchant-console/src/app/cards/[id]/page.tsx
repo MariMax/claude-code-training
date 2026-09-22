@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/ui/payments/StatusBadge"
 import { cardById } from "@/data/cards"
 import { merchantById } from "@/data/merchants"
 import { CardEvent } from "@/data/types"
-import { maskCardNumber } from "@/lib/cards"
+import { CARD_CATEGORY_LABELS, maskCardNumber } from "@/lib/cards"
 import { formatInZone } from "@/lib/dates"
 import { formatMoney } from "@/lib/money"
 import { cx } from "@/lib/utils"
@@ -72,6 +72,11 @@ export default async function CardDetail({
           <span className="font-mono">{maskCardNumber(card.last4)}</span>
         </Field>
         <Field label="Currency">{card.currency}</Field>
+        <Field label="Category lock">
+          {card.categoryLock
+            ? CARD_CATEGORY_LABELS[card.categoryLock]
+            : "None: any category"}
+        </Field>
         <Field label="Spend limit">
           <span className="tabular-nums">
             {formatMoney(card.spendLimit, card.currency)}

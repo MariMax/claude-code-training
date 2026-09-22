@@ -1,4 +1,4 @@
-import { CardEvent, CardStatus } from "@/data/types"
+import { CardCategory, CardEvent, CardStatus } from "@/data/types"
 
 /**
  * Card number rules. Every generated number is on the 4242 test BIN with a
@@ -50,6 +50,19 @@ export function generateCardNumber(digit: () => number = randomDigit): string {
 export function maskCardNumber(last4: string): string {
   return `•••• ${last4}`
 }
+
+/** The category allowlist, in display order, with the label ops sees. */
+export const CARD_CATEGORY_LABELS: Record<CardCategory, string> = {
+  advertising: "Advertising",
+  software: "Software & subscriptions",
+  contractor_tools: "Contractor tools",
+  travel: "Travel",
+  office_supplies: "Office supplies",
+}
+
+export const CARD_CATEGORIES = Object.keys(
+  CARD_CATEGORY_LABELS,
+) as CardCategory[]
 
 /** active ⇄ frozen, either to cancelled, and cancelled is terminal. */
 const TRANSITIONS: Record<CardStatus, readonly CardStatus[]> = {

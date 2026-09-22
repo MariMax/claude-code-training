@@ -85,6 +85,14 @@ export interface PaymentFilters {
 
 export type CardStatus = "active" | "frozen" | "cancelled"
 
+/** Merchant categories a card can be locked to at issue time. */
+export type CardCategory =
+  | "advertising"
+  | "software"
+  | "contractor_tools"
+  | "travel"
+  | "office_supplies"
+
 export interface CardEvent {
   type: "issued" | "frozen" | "unfrozen" | "cancelled"
   /** ISO 8601, always UTC. */
@@ -107,6 +115,8 @@ export interface VirtualCard {
   /** Integer minor units spent so far, in the card's currency. */
   spent: number
   currency: Currency
+  /** Spend is restricted to this merchant category. Null means unlocked. */
+  categoryLock: CardCategory | null
   status: CardStatus
   /** ISO 8601, always UTC. */
   createdAt: string
