@@ -9,87 +9,56 @@ import { store } from "./store"
 import { CardCategory, CardStatus, Currency, VirtualCard } from "./types"
 
 export const CARD_CURRENCIES: readonly Currency[] = ["USD", "EUR", "GBP"]
-export const CARD_STATUSES: readonly CardStatus[] = ["active", "frozen", "cancelled"]
+const STATUSES: readonly CardStatus[] = ["active", "frozen", "cancelled"]
 /** 5,000,000 minor units: $50,000.00. */
 export const MAX_SPEND_LIMIT = 5_000_000
 export const MAX_NICKNAME_LENGTH = 50
+const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,100}$/
 
-export interface IssueCardInput {
-  nickname: string
-  merchantId: string
-  spendLimit: number
-  currency: Currency
-  categoryLock: CardCategory | null
-}
+export type IssueCardInput = Pick<
+  VirtualCard,
+  "nickname" | "merchantId" | "spendLimit" | "currency" | "categoryLock"
+>
+type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
+const fail = (error: string) => ({ ok: false as const, error })
 
-export type Parsed<T> = { ok: true; value: T } | { ok: false; error: string }
-
-/**
- * Anything from the client is checked against an allowlist before it reaches
- * the store. Route handlers call this rather than reading the body themselves.
- * Returns the first problem found, with a message safe to show a user.
- */
+/** Allowlists client input before the store, like `parseFilters`. */
 export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
   if (typeof body !== "object" || body === null) {
-    return { ok: false, error: "Request body must be a JSON object." }
+    return fail("Request body must be a JSON object.")
   }
-  const { nickname, merchantId, spendLimit, currency, categoryLock } = body as Record<
-    string,
-    unknown
-  >
+  const { nickname, merchantId, spendLimit, currency, categoryLock } =
+    body as Record<string, unknown>
 
   const name = typeof nickname === "string" ? nickname.trim() : ""
-  if (!name) return { ok: false, error: "Nickname is required." }
+  if (!name) return fail("Nickname is required.")
   if (name.length > MAX_NICKNAME_LENGTH) {
-    return {
-      ok: false,
-      error: `Nickname must be ${MAX_NICKNAME_LENGTH} characters or fewer.`,
-    }
+    return fail(`Nickname must be ${MAX_NICKNAME_LENGTH} characters or fewer.`)
   }
-
   if (typeof merchantId !== "string" || !merchantId) {
-    return { ok: false, error: "Merchant is required." }
+    return fail("Merchant is required.")
   }
   const merchant = merchantById(merchantId)
-  if (!merchant) {
-    return { ok: false, error: "Merchant not found." }
-  }
+  if (!merchant) return fail("Merchant not found.")
 
   if (typeof spendLimit !== "number" || !Number.isInteger(spendLimit)) {
-    return {
-      ok: false,
-      error: "Spend limit must be a whole number of minor units.",
-    }
+    return fail("Spend limit must be a whole number of minor units.")
   }
-  if (spendLimit <= 0) {
-    return { ok: false, error: "Spend limit must be greater than zero." }
-  }
+  if (spendLimit <= 0) return fail("Spend limit must be greater than zero.")
   if (spendLimit > MAX_SPEND_LIMIT) {
-    return {
-      ok: false,
-      error: `Spend limit cannot exceed ${MAX_SPEND_LIMIT.toLocaleString("en-US")} minor units.`,
-    }
+    return fail("Spend limit cannot exceed 5,000,000 minor units.")
   }
-
   if (!CARD_CURRENCIES.includes(currency as Currency)) {
-    return { ok: false, error: "Currency must be one of USD, EUR, or GBP." }
+    return fail("Currency must be one of USD, EUR, or GBP.")
   }
-  // A card spends in its merchant's settlement currency. A mismatch is the
-  // wrong-currency mistake this form exists to stop, so it is refused here.
+  // A card spends in its merchant's settlement currency.
   if (currency !== merchant.currency) {
-    return {
-      ok: false,
-      error: `${merchant.name} settles in ${merchant.currency}. Issue this card in ${merchant.currency}.`,
-    }
+    const code = merchant.currency
+    return fail(`${merchant.name} settles in ${code}. Issue this card in ${code}.`)
   }
-
-  // Optional: absent or null issues an unlocked card.
-  const category = categoryLock ?? null
-  if (category !== null && !CARD_CATEGORIES.includes(category as CardCategory)) {
-    return {
-      ok: false,
-      error: `Category must be one of ${CARD_CATEGORIES.join(", ")}, or omitted.`,
-    }
+  const category = (categoryLock ?? null) as CardCategory | null
+  if (category !== null && !CARD_CATEGORIES.includes(category)) {
+    return fail(`Category must be one of ${CARD_CATEGORIES.join(", ")}, or omitted.`)
   }
 
   return {
@@ -98,53 +67,47 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
       nickname: name,
       merchantId,
       spendLimit,
-      currency: currency as Currency,
-      categoryLock: category as CardCategory | null,
+      currency: merchant.currency,
+      categoryLock: category,
     },
   }
 }
 
 export function parseCardStatus(body: unknown): Parsed<CardStatus> {
-  const status = (body as Record<string, unknown> | null)?.status
-  if (!CARD_STATUSES.includes(status as CardStatus)) {
-    return {
-      ok: false,
-      error: "Status must be one of active, frozen, or cancelled.",
-    }
+  const status = (body as { status?: unknown } | null)?.status as CardStatus
+  if (!STATUSES.includes(status)) {
+    return fail("Status must be one of active, frozen, or cancelled.")
   }
-  return { ok: true, value: status as CardStatus }
+  return { ok: true, value: status }
+}
+
+export function parseIdempotencyKey(key: string | null): Parsed<string | null> {
+  if (key !== null && !IDEMPOTENCY_KEY.test(key)) {
+    return fail("Idempotency-Key must be 8 to 100 letters, digits, - or _.")
+  }
+  return { ok: true, value: key }
 }
 
 /** Newest first. */
-export function listCards(): VirtualCard[] {
-  return [...store.cards].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-}
+export const listCards = () =>
+  [...store.cards].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
-export function cardById(id: string): VirtualCard | null {
-  return store.cards.find((card) => card.id === id) ?? null
-}
+export const cardById = (id: string) =>
+  store.cards.find((card) => card.id === id) ?? null
 
 /**
- * Issues a card. The full number is generated here and returned alongside the
- * stored record exactly once; the record itself keeps only the last four and
- * an opaque reference.
+ * The only place a full number exists: returned once beside the stored
+ * record, which keeps just the last four and an opaque reference.
  */
-export function issueCard(input: IssueCardInput): {
-  card: VirtualCard
-  number: string
-} {
+export function issueCard(input: IssueCardInput) {
   const number = generateCardNumber()
   const createdAt = new Date().toISOString()
   const card: VirtualCard = {
+    ...input,
     id: `card_${crypto.randomUUID().slice(0, 8)}`,
-    nickname: input.nickname,
-    merchantId: input.merchantId,
     last4: number.slice(-4),
     reference: `cref_${crypto.randomUUID()}`,
-    spendLimit: input.spendLimit,
     spent: 0,
-    currency: input.currency,
-    categoryLock: input.categoryLock,
     status: "active",
     createdAt,
     events: [{ type: "issued", at: createdAt }],
@@ -153,64 +116,31 @@ export function issueCard(input: IssueCardInput): {
   return { card, number }
 }
 
-/** Client-generated, e.g. a UUID. Anything else is rejected, not stored. */
-const IDEMPOTENCY_KEY = /^[A-Za-z0-9_-]{8,100}$/
-
-export function parseIdempotencyKey(header: string | null): Parsed<string | null> {
-  if (header === null) return { ok: true, value: null }
-  if (!IDEMPOTENCY_KEY.test(header)) {
-    return {
-      ok: false,
-      error: "Idempotency-Key must be 8 to 100 letters, digits, dashes, or underscores.",
-    }
-  }
-  return { ok: true, value: header }
-}
-
-export type IssueOnceResult =
-  | { replayed: false; card: VirtualCard; number: string }
-  | { replayed: true; card: VirtualCard }
-
 /**
- * Issues at most one card per idempotency key, so a double click or a retried
- * request cannot create a second card. A replay returns the original card but
- * never the number again: the reveal happened on the first response.
+ * At most one card per idempotency key, so a double click or retry cannot
+ * issue twice. A replay gets the original card, never the number again.
  */
-export function issueCardOnce(
-  input: IssueCardInput,
-  key: string | null,
-): IssueOnceResult {
-  const previous = key ? store.cardIssueKeys.get(key) : undefined
-  const existing = previous ? cardById(previous) : null
-  if (existing) return { replayed: true, card: existing }
+export function issueCardOnce(input: IssueCardInput, key: string | null) {
+  const existing = key ? cardById(store.cardIssueKeys.get(key) ?? "") : null
+  if (existing) return { replayed: true as const, card: existing }
 
   const { card, number } = issueCard(input)
   if (key) store.cardIssueKeys.set(key, card.id)
-  return { replayed: false, card, number }
+  return { replayed: false as const, card, number }
 }
 
-export type TransitionResult =
-  | { ok: true; card: VirtualCard }
-  | { ok: false; reason: "not_found" | "illegal"; error: string }
-
 /** The only way a card's status changes. Guards the state machine. */
-export function transitionCard(id: string, to: CardStatus): TransitionResult {
+export function transitionCard(id: string, to: CardStatus) {
   const card = cardById(id)
-  if (!card) return { ok: false, reason: "not_found", error: "Card not found." }
+  if (!card) return { ...fail("Card not found."), reason: "not_found" as const }
   if (!canTransition(card.status, to)) {
-    return {
-      ok: false,
-      reason: "illegal",
-      error:
-        card.status === "cancelled"
-          ? "This card is cancelled. Cancelled cards cannot be changed."
-          : `A ${card.status} card cannot be moved to ${to}.`,
-    }
+    const error =
+      card.status === "cancelled"
+        ? "This card is cancelled. Cancelled cards cannot be changed."
+        : `A ${card.status} card cannot be moved to ${to}.`
+    return { ...fail(error), reason: "illegal" as const }
   }
-  card.events.push({
-    type: eventForTransition(card.status, to),
-    at: new Date().toISOString(),
-  })
+  card.events.push({ type: eventForTransition(card.status, to), at: new Date().toISOString() })
   card.status = to
-  return { ok: true, card }
+  return { ok: true as const, card }
 }
