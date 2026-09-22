@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/Select"
-import type { CardCategory, Currency } from "@/data/types"
+import type { Currency } from "@/data/types"
 import { CARD_CATEGORIES, CARD_CATEGORY_LABELS } from "@/lib/cards"
 import { parseAmountToMinorUnits } from "@/lib/money"
 import { Plus } from "lucide-react"
@@ -28,103 +28,86 @@ import { useState } from "react"
 
 /** Radix Select cannot hold an empty value, so "no lock" gets a sentinel. */
 const NO_LOCK = "none"
+const EMPTY = { nickname: "", merchantId: "", limit: "", currency: "", category: NO_LOCK }
+const errorText = "text-sm text-red-600 dark:text-red-500"
 
-type MerchantOption = { id: string; name: string; currency: Currency }
+function Field(props: { id: string; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={props.id} className="text-sm font-medium text-gray-900 dark:text-gray-50">
+        {props.label}
+      </label>
+      {props.children}
+    </div>
+  )
+}
 
-/** Held only while the success view is open; cleared on close. */
-type Issued = { nickname: string; number: string }
-
-const labelClass = "text-sm font-medium text-gray-900 dark:text-gray-50"
-
-export function IssueCardDrawer({
-  merchants,
-  currencies,
-  maxNicknameLength,
-}: {
-  merchants: MerchantOption[]
+export function IssueCardDrawer(props: {
+  merchants: { id: string; name: string; currency: Currency }[]
   currencies: Currency[]
   maxNicknameLength: number
 }) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
-  const [nickname, setNickname] = useState("")
-  const [merchantId, setMerchantId] = useState("")
-  const [limit, setLimit] = useState("")
-  const [currency, setCurrency] = useState<Currency | "">("")
-  const [category, setCategory] = useState<CardCategory | typeof NO_LOCK>(NO_LOCK)
+  const [form, setForm] = useState(EMPTY)
   const [limitError, setLimitError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [issued, setIssued] = useState<Issued | null>(null)
-  // One key per form session: a retry or a double click reuses it, so the
-  // server issues at most one card. A fresh form gets a fresh key.
+  // Held only while the success view is open; cleared on every close.
+  const [issued, setIssued] = useState<{ nickname: string; number: string } | null>(null)
+  // One key per form session: a retry or double click reuses it, so the
+  // server issues at most one card.
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
 
-  const merchant = merchants.find((m) => m.id === merchantId)
-  const mismatch = merchant && currency && currency !== merchant.currency
+  const set = (changes: Partial<typeof EMPTY>) => setForm((f) => ({ ...f, ...changes }))
+  const merchant = props.merchants.find((m) => m.id === form.merchantId)
+  const mismatch = Boolean(merchant && form.currency && form.currency !== merchant.currency)
 
-  const reset = () => {
-    setNickname("")
-    setMerchantId("")
-    setLimit("")
-    setCurrency("")
-    setCategory(NO_LOCK)
+  const onOpenChange = (next: boolean) => {
+    // Closing mid-request would drop the one response that carries the number.
+    if (!next && submitting) return
+    setOpen(next)
+    if (next) return
+    if (issued) router.refresh()
+    setForm(EMPTY)
     setLimitError(null)
     setError(null)
     setIssued(null)
     setIdempotencyKey(crypto.randomUUID())
   }
 
-  const onOpenChange = (next: boolean) => {
-    // Closing mid-request would drop the one response that carries the number.
-    if (!next && submitting) return
-    setOpen(next)
-    if (!next) {
-      const hadIssued = issued !== null
-      reset()
-      if (hadIssued) router.refresh()
-    }
-  }
-
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (submitting) return
     setError(null)
     setLimitError(null)
-
-    if (!nickname.trim()) return setError("Nickname is required.")
-    if (!merchantId) return setError("Choose a merchant.")
-    if (!currency) return setError("Choose a currency.")
+    if (!form.nickname.trim()) return setError("Nickname is required.")
+    if (!merchant) return setError("Choose a merchant.")
+    if (!form.currency) return setError("Choose a currency.")
     if (mismatch) return setError(`Issue this card in ${merchant.currency}.`)
-
     // Converted once, here, at the boundary. The server re-validates it.
-    const spendLimit = parseAmountToMinorUnits(limit)
-    if (spendLimit === null || spendLimit <= 0) {
-      return setLimitError("Enter an amount like 250.00, greater than zero.")
-    }
+    const spendLimit = parseAmountToMinorUnits(form.limit)
+    if (!spendLimit) return setLimitError("Enter an amount like 250.00, greater than zero.")
 
     setSubmitting(true)
     try {
       const response = await fetch("/api/cards", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "idempotency-key": idempotencyKey,
-        },
+        headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
         body: JSON.stringify({
-          nickname,
-          merchantId,
+          nickname: form.nickname,
+          merchantId: form.merchantId,
           spendLimit,
-          currency,
-          categoryLock: category === NO_LOCK ? null : category,
+          currency: form.currency,
+          categoryLock: form.category === NO_LOCK ? null : form.category,
         }),
       })
       const body = await response.json().catch(() => null)
-      if (!response.ok || !body?.card || !body?.number) {
+      if (response.ok && body?.number) {
+        setIssued({ nickname: body.card.nickname, number: body.number })
+      } else {
         setError(body?.error ?? "The card could not be issued. Try again.")
-        return
       }
-      setIssued({ nickname: body.card.nickname, number: body.number })
     } catch {
       setError("The card could not be issued. Check your connection and try again.")
     } finally {
@@ -152,22 +135,16 @@ export function IssueCardDrawer({
 
         {issued ? (
           <>
-            <DrawerBody className="flex flex-col gap-4">
-              <div>
-                <p className="text-sm text-gray-500">Nickname</p>
-                <p className="font-medium text-gray-900 dark:text-gray-50">
-                  {issued.nickname}
-                </p>
-              </div>
+            <DrawerBody className="flex flex-col gap-4 text-gray-900 dark:text-gray-50">
+              <p className="font-medium">{issued.nickname}</p>
               <div>
                 <p className="text-sm text-gray-500">Card number</p>
-                <p className="font-mono text-lg tracking-wider text-gray-900 dark:text-gray-50">
+                <p className="font-mono text-lg tracking-wider">
                   {issued.number.replace(/(\d{4})(?=\d)/g, "$1 ")}
                 </p>
               </div>
               <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-400/10 dark:text-amber-400">
-                This is the only time the full number is shown. It cannot be
-                retrieved later.
+                This is the only time the full number is shown. It cannot be retrieved later.
               </p>
             </DrawerBody>
             <DrawerFooter>
@@ -177,155 +154,98 @@ export function IssueCardDrawer({
         ) : (
           <form onSubmit={submit} noValidate className="flex flex-1 flex-col">
             <DrawerBody className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="card-nickname" className={labelClass}>
-                  Nickname
-                </label>
+              <Field id="card-nickname" label="Nickname">
                 <Input
                   id="card-nickname"
-                  name="nickname"
-                  required
-                  maxLength={maxNicknameLength}
-                  value={nickname}
-                  onChange={(event) => setNickname(event.target.value)}
+                  maxLength={props.maxNicknameLength}
+                  value={form.nickname}
+                  onChange={(e) => set({ nickname: e.target.value })}
                   placeholder="Ad spend — Q3"
                 />
-              </div>
+              </Field>
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="card-merchant" className={labelClass}>
-                  Merchant
-                </label>
+              <Field id="card-merchant" label="Merchant">
                 <Select
-                  value={merchantId}
-                  onValueChange={(id) => {
-                    setMerchantId(id)
-                    const picked = merchants.find((m) => m.id === id)
-                    if (picked) setCurrency(picked.currency)
-                  }}
+                  value={form.merchantId}
+                  onValueChange={(id) =>
+                    set({ merchantId: id, currency: props.merchants.find((m) => m.id === id)!.currency })
+                  }
                 >
                   <SelectTrigger id="card-merchant">
                     <SelectValue placeholder="Choose a merchant" />
                   </SelectTrigger>
                   <SelectContent>
-                    {merchants.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.name}
-                      </SelectItem>
+                    {props.merchants.map((m) => (
+                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="card-limit" className={labelClass}>
-                  Spend limit
-                </label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    id="card-limit"
-                    name="spendLimit"
-                    inputMode="decimal"
-                    autoComplete="off"
-                    value={limit}
-                    onChange={(event) => setLimit(event.target.value)}
-                    placeholder="250.00"
-                    hasError={limitError !== null}
-                    aria-invalid={limitError !== null}
-                    aria-describedby={limitError ? "card-limit-error" : undefined}
-                  />
-                  <span className="w-10 shrink-0 text-sm text-gray-500">
-                    {currency || "—"}
-                  </span>
-                </div>
-                {limitError && (
-                  <p
-                    id="card-limit-error"
-                    className="text-sm text-red-600 dark:text-red-500"
-                  >
-                    {limitError}
-                  </p>
-                )}
-              </div>
+              <Field id="card-limit" label={`Spend limit${form.currency ? ` (${form.currency})` : ""}`}>
+                <Input
+                  id="card-limit"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  value={form.limit}
+                  onChange={(e) => set({ limit: e.target.value })}
+                  placeholder="250.00"
+                  hasError={limitError !== null}
+                  aria-invalid={limitError !== null}
+                  aria-describedby={limitError ? "card-limit-error" : undefined}
+                />
+                {limitError && <p id="card-limit-error" className={errorText}>{limitError}</p>}
+              </Field>
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="card-currency" className={labelClass}>
-                  Currency
-                </label>
-                <Select
-                  value={currency}
-                  onValueChange={(value) => setCurrency(value as Currency)}
-                >
+              <Field id="card-currency" label="Currency">
+                <Select value={form.currency} onValueChange={(currency) => set({ currency })}>
                   <SelectTrigger
                     id="card-currency"
-                    hasError={Boolean(mismatch)}
-                    aria-invalid={Boolean(mismatch)}
+                    hasError={mismatch}
+                    aria-invalid={mismatch}
                     aria-describedby={mismatch ? "card-currency-error" : undefined}
                   >
                     <SelectValue placeholder="Choose a currency" />
                   </SelectTrigger>
                   <SelectContent>
-                    {currencies.map((code) => (
-                      <SelectItem key={code} value={code}>
-                        {code}
-                      </SelectItem>
+                    {props.currencies.map((code) => (
+                      <SelectItem key={code} value={code}>{code}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 {mismatch && (
-                  <p
-                    id="card-currency-error"
-                    className="text-sm text-red-600 dark:text-red-500"
-                  >
-                    {merchant.name} settles in {merchant.currency}. Cards for
-                    this merchant must be issued in {merchant.currency}.
+                  <p id="card-currency-error" className={errorText}>
+                    {merchant!.name} settles in {merchant!.currency}. Cards for this merchant must be
+                    issued in {merchant!.currency}.
                   </p>
                 )}
-              </div>
+              </Field>
 
-              <div className="flex flex-col gap-1.5">
-                <label htmlFor="card-category" className={labelClass}>
-                  Merchant category lock
-                </label>
-                <Select
-                  value={category}
-                  onValueChange={(value) =>
-                    setCategory(value as CardCategory | typeof NO_LOCK)
-                  }
-                >
-                  <SelectTrigger
-                    id="card-category"
-                    aria-describedby="card-category-hint"
-                  >
+              <Field id="card-category" label="Merchant category lock">
+                <Select value={form.category} onValueChange={(category) => set({ category })}>
+                  <SelectTrigger id="card-category" aria-describedby="card-category-hint">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={NO_LOCK}>No lock</SelectItem>
                     {CARD_CATEGORIES.map((code) => (
-                      <SelectItem key={code} value={code}>
-                        {CARD_CATEGORY_LABELS[code]}
-                      </SelectItem>
+                      <SelectItem key={code} value={code}>{CARD_CATEGORY_LABELS[code]}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p id="card-category-hint" className="text-sm text-gray-500">
-                  Only spend in this category is allowed. Set at issue; it
-                  cannot be changed later.
+                  Only spend in this category is allowed. Set at issue; it cannot be changed later.
                 </p>
-              </div>
+              </Field>
 
-              {error && (
-                <p role="alert" className="text-sm text-red-600 dark:text-red-500">
-                  {error}
-                </p>
-              )}
+              {error && <p role="alert" className={errorText}>{error}</p>}
             </DrawerBody>
             <DrawerFooter>
               <Button
                 type="submit"
                 isLoading={submitting}
                 loadingText="Issuing..."
-                disabled={submitting || Boolean(mismatch)}
+                disabled={submitting || mismatch}
               >
                 Issue card
               </Button>

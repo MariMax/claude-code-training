@@ -17,9 +17,10 @@ import Link from "next/link"
 import { CardActions } from "./card-actions"
 import { IssueCardDrawer } from "./issue-card-drawer"
 
-// Cards live in the in-memory store and change on every issue or status
-// change, so this page must never be served from the static cache.
+// Cards change on every issue or status change; never serve a cached render.
 export const dynamic = "force-dynamic"
+
+const COLUMNS = ["Card", "Merchant", "Number", "Category", "Spend limit", "Status", "Created"]
 
 export default function CardsPage() {
   const cards = listCards()
@@ -27,15 +28,9 @@ export default function CardsPage() {
   return (
     <section aria-label="Virtual cards">
       <div className="flex flex-col justify-between gap-2 px-4 py-6 sm:flex-row sm:items-center sm:p-6">
-        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-          Virtual cards
-        </h1>
+        <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Virtual cards</h1>
         <IssueCardDrawer
-          merchants={merchants.map((m) => ({
-            id: m.id,
-            name: m.name,
-            currency: m.currency,
-          }))}
+          merchants={merchants}
           currencies={[...CARD_CURRENCIES]}
           maxNicknameLength={MAX_NICKNAME_LENGTH}
         />
@@ -45,13 +40,11 @@ export default function CardsPage() {
         <Table>
           <TableHead>
             <TableRow>
-              <TableHeaderCell>Card</TableHeaderCell>
-              <TableHeaderCell>Merchant</TableHeaderCell>
-              <TableHeaderCell>Number</TableHeaderCell>
-              <TableHeaderCell>Category</TableHeaderCell>
-              <TableHeaderCell className="text-right">Spend limit</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell>Created</TableHeaderCell>
+              {COLUMNS.map((column) => (
+                <TableHeaderCell key={column} className={column === "Spend limit" ? "text-right" : ""}>
+                  {column}
+                </TableHeaderCell>
+              ))}
               <TableHeaderCell>
                 <span className="sr-only">Actions</span>
               </TableHeaderCell>
@@ -60,63 +53,48 @@ export default function CardsPage() {
           <TableBody>
             {cards.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="py-16 text-center">
-                  <p className="font-medium text-gray-900 dark:text-gray-50">
-                    No cards issued yet
-                  </p>
+                <TableCell colSpan={COLUMNS.length + 1} className="py-16 text-center">
+                  <p className="font-medium text-gray-900 dark:text-gray-50">No cards issued yet</p>
                   <p className="mt-1 text-gray-500">
                     Use Issue card to create a virtual card for a merchant.
                   </p>
                 </TableCell>
               </TableRow>
             )}
-            {cards.map((card) => {
-              const merchant = merchantById(card.merchantId)
-              return (
-                <TableRow key={card.id}>
-                  <TableCell>
-                    <Link
-                      href={`/cards/${card.id}`}
-                      className="font-medium text-blue-600 hover:underline dark:text-blue-500"
-                    >
-                      {card.nickname}
-                    </Link>
-                  </TableCell>
-                  <TableCell>{merchant?.name}</TableCell>
-                  <TableCell className="font-mono">
-                    {maskCardNumber(card.last4)}
-                  </TableCell>
-                  <TableCell className="text-gray-500">
-                    {card.categoryLock
-                      ? CARD_CATEGORY_LABELS[card.categoryLock]
-                      : "Any"}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums text-gray-900 dark:text-gray-50">
-                    {formatMoney(card.spendLimit, card.currency)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={card.status} />
-                  </TableCell>
-                  <TableCell>{formatDate(card.createdAt)}</TableCell>
-                  <TableCell>
-                    <CardActions
-                      id={card.id}
-                      nickname={card.nickname}
-                      status={card.status}
-                    />
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+            {cards.map((card) => (
+              <TableRow key={card.id}>
+                <TableCell>
+                  <Link
+                    href={`/cards/${card.id}`}
+                    className="font-medium text-blue-600 hover:underline dark:text-blue-500"
+                  >
+                    {card.nickname}
+                  </Link>
+                </TableCell>
+                <TableCell>{merchantById(card.merchantId)?.name}</TableCell>
+                <TableCell className="font-mono">{maskCardNumber(card.last4)}</TableCell>
+                <TableCell className="text-gray-500">
+                  {card.categoryLock ? CARD_CATEGORY_LABELS[card.categoryLock] : "Any"}
+                </TableCell>
+                <TableCell className="text-right font-medium tabular-nums text-gray-900 dark:text-gray-50">
+                  {formatMoney(card.spendLimit, card.currency)}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={card.status} />
+                </TableCell>
+                <TableCell>{formatDate(card.createdAt)}</TableCell>
+                <TableCell>
+                  <CardActions id={card.id} nickname={card.nickname} status={card.status} />
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </TableRoot>
 
-      <div className="px-4 py-4 sm:px-6">
-        <p className="text-sm text-gray-500">
-          {cards.length.toLocaleString()} {cards.length === 1 ? "card" : "cards"}
-        </p>
-      </div>
+      <p className="px-4 py-4 text-sm text-gray-500 sm:px-6">
+        {cards.length} {cards.length === 1 ? "card" : "cards"}
+      </p>
     </section>
   )
 }

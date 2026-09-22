@@ -5,39 +5,31 @@ import type { CardStatus } from "@/data/types"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
-export function CardActions({
-  id,
-  nickname,
-  status,
-}: {
-  id: string
-  nickname: string
-  status: CardStatus
-}) {
+/** Freeze, unfreeze and a two-step cancel. The server guards every transition. */
+export function CardActions(props: { id: string; nickname: string; status: CardStatus }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
-  const [confirmingCancel, setConfirmingCancel] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (status === "cancelled") {
+  if (props.status === "cancelled") {
     return <span className="text-gray-400 dark:text-gray-600">—</span>
   }
 
-  const update = async (next: CardStatus) => {
+  const update = async (status: CardStatus) => {
     setPending(true)
     setError(null)
     try {
-      const response = await fetch(`/api/cards/${id}`, {
+      const response = await fetch(`/api/cards/${props.id}`, {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ status: next }),
+        body: JSON.stringify({ status }),
       })
       if (!response.ok) {
         const body = await response.json().catch(() => null)
-        setError(body?.error ?? "The card could not be updated. Try again.")
-        return
+        return setError(body?.error ?? "The card could not be updated. Try again.")
       }
-      setConfirmingCancel(false)
+      setConfirming(false)
       router.refresh()
     } catch {
       setError("The card could not be updated. Check your connection and try again.")
@@ -46,65 +38,38 @@ export function CardActions({
     }
   }
 
+  const action = (
+    label: string,
+    name: string,
+    onClick: () => void,
+    variant: "secondary" | "ghost" | "destructive" = "secondary",
+  ) => (
+    <Button
+      variant={variant}
+      className={variant === "ghost" ? "py-1 text-red-600 dark:text-red-500" : "py-1"}
+      disabled={pending}
+      aria-label={`${name} ${props.nickname}`}
+      onClick={onClick}
+    >
+      {label}
+    </Button>
+  )
+
   return (
     <div className="flex flex-col items-end gap-1">
       <div className="flex justify-end gap-2">
-        {status === "active" && !confirmingCancel && (
-          <Button
-            variant="secondary"
-            className="py-1"
-            disabled={pending}
-            aria-label={`Freeze ${nickname}`}
-            onClick={() => update("frozen")}
-          >
-            Freeze
-          </Button>
-        )}
-        {status === "frozen" && !confirmingCancel && (
-          <Button
-            variant="secondary"
-            className="py-1"
-            disabled={pending}
-            aria-label={`Unfreeze ${nickname}`}
-            onClick={() => update("active")}
-          >
-            Unfreeze
-          </Button>
-        )}
-        {confirmingCancel ? (
+        {confirming ? (
           <>
-            <Button
-              variant="secondary"
-              className="py-1"
-              disabled={pending}
-              aria-label={`Keep ${nickname}`}
-              onClick={() => setConfirmingCancel(false)}
-            >
-              Keep card
-            </Button>
-            <Button
-              variant="destructive"
-              className="py-1"
-              disabled={pending}
-              aria-label={`Confirm cancel ${nickname}`}
-              onClick={() => update("cancelled")}
-            >
-              Confirm cancel
-            </Button>
+            {action("Keep card", "Keep", () => setConfirming(false))}
+            {action("Confirm cancel", "Confirm cancel", () => update("cancelled"), "destructive")}
           </>
         ) : (
-          <Button
-            variant="ghost"
-            className="py-1 text-red-600 dark:text-red-500"
-            disabled={pending}
-            aria-label={`Cancel card ${nickname}`}
-            onClick={() => {
-              setError(null)
-              setConfirmingCancel(true)
-            }}
-          >
-            Cancel card
-          </Button>
+          <>
+            {props.status === "active"
+              ? action("Freeze", "Freeze", () => update("frozen"))
+              : action("Unfreeze", "Unfreeze", () => update("active"))}
+            {action("Cancel card", "Cancel card", () => setConfirming(true), "ghost")}
+          </>
         )}
       </div>
       {error && (
