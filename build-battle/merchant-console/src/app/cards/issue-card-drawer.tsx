@@ -95,6 +95,7 @@ export function IssueCardDrawer({
     if (!nickname.trim()) return setError("Nickname is required.")
     if (!merchantId) return setError("Choose a merchant.")
     if (!currency) return setError("Choose a currency.")
+    if (mismatch) return setError(`Issue this card in ${merchant.currency}.`)
 
     // Converted once, here, at the boundary. The server re-validates it.
     const spendLimit = parseAmountToMinorUnits(limit)
@@ -255,7 +256,12 @@ export function IssueCardDrawer({
                   value={currency}
                   onValueChange={(value) => setCurrency(value as Currency)}
                 >
-                  <SelectTrigger id="card-currency">
+                  <SelectTrigger
+                    id="card-currency"
+                    hasError={Boolean(mismatch)}
+                    aria-invalid={Boolean(mismatch)}
+                    aria-describedby={mismatch ? "card-currency-error" : undefined}
+                  >
                     <SelectValue placeholder="Choose a currency" />
                   </SelectTrigger>
                   <SelectContent>
@@ -267,9 +273,12 @@ export function IssueCardDrawer({
                   </SelectContent>
                 </Select>
                 {mismatch && (
-                  <p className="text-sm text-amber-700 dark:text-amber-400">
-                    {merchant.name} settles in {merchant.currency}. This card
-                    will be issued in {currency}.
+                  <p
+                    id="card-currency-error"
+                    className="text-sm text-red-600 dark:text-red-500"
+                  >
+                    {merchant.name} settles in {merchant.currency}. Cards for
+                    this merchant must be issued in {merchant.currency}.
                   </p>
                 )}
               </div>
@@ -316,7 +325,7 @@ export function IssueCardDrawer({
                 type="submit"
                 isLoading={submitting}
                 loadingText="Issuing..."
-                disabled={submitting}
+                disabled={submitting || Boolean(mismatch)}
               >
                 Issue card
               </Button>

@@ -75,6 +75,15 @@ describe("parseIssueCard", () => {
     expect(errorFor({ ...valid, currency: undefined })).toMatch(/currency/i)
   })
 
+  it("rejects a currency that differs from the merchant's", () => {
+    // mch_01 settles in USD, mch_04 in GBP, mch_05 in EUR.
+    expect(errorFor({ ...valid, currency: "EUR" })).toMatch(/settles in USD/)
+    expect(errorFor({ ...valid, merchantId: "mch_04", currency: "USD" })).toMatch(
+      /settles in GBP/,
+    )
+    expect(errorFor({ ...valid, merchantId: "mch_05", currency: "EUR" })).toBeNull()
+  })
+
   it("rejects a missing nickname and a non-object body", () => {
     expect(errorFor({ ...valid, nickname: "   " })).toMatch(/nickname/i)
     expect(errorFor({ ...valid, nickname: "x".repeat(51) })).toMatch(/nickname/i)

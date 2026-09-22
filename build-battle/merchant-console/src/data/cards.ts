@@ -50,7 +50,8 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
   if (typeof merchantId !== "string" || !merchantId) {
     return { ok: false, error: "Merchant is required." }
   }
-  if (!merchantById(merchantId)) {
+  const merchant = merchantById(merchantId)
+  if (!merchant) {
     return { ok: false, error: "Merchant not found." }
   }
 
@@ -72,6 +73,14 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
 
   if (!CARD_CURRENCIES.includes(currency as Currency)) {
     return { ok: false, error: "Currency must be one of USD, EUR, or GBP." }
+  }
+  // A card spends in its merchant's settlement currency. A mismatch is the
+  // wrong-currency mistake this form exists to stop, so it is refused here.
+  if (currency !== merchant.currency) {
+    return {
+      ok: false,
+      error: `${merchant.name} settles in ${merchant.currency}. Issue this card in ${merchant.currency}.`,
+    }
   }
 
   // Optional: absent or null issues an unlocked card.
