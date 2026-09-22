@@ -86,23 +86,15 @@ export interface PaymentFilters {
 export type CardStatus = "active" | "frozen" | "cancelled"
 
 /** Merchant categories a card can be locked to at issue time. */
-export type CardCategory =
-  | "advertising"
-  | "software"
-  | "contractor_tools"
-  | "travel"
-  | "office_supplies"
+export type CardCategory = "advertising" | "software" | "contractor_tools" | "travel" | "office_supplies"
 
+/** `at` is ISO 8601, always UTC. */
 export interface CardEvent {
   type: "issued" | "frozen" | "unfrozen" | "cancelled"
-  /** ISO 8601, always UTC. */
   at: string
 }
 
-/**
- * A virtual card as stored. There is deliberately no field for the full
- * number: it exists once, in the creation response, and never again.
- */
+/** A stored card. No field holds the full number: it exists only in the creation response. */
 export interface VirtualCard {
   id: string
   nickname: string
@@ -110,16 +102,12 @@ export interface VirtualCard {
   last4: string
   /** Opaque reference to the generated number. Not the number. */
   reference: string
-  /** Integer minor units. Never a float. */
+  /** Integer minor units, like `spent`. */
   spendLimit: number
-  /**
-   * Integer minor units spent, in the card's currency. Starts at 0 and stays
-   * 0: there is no card network, so nothing authorizes spend against a card
-   * yet. Nothing in the app invents a value for it.
-   */
+  /** 0 until a card network records authorizations; never invented. */
   spent: number
   currency: Currency
-  /** Spend is restricted to this merchant category. Null means unlocked. */
+  /** Null means unlocked. */
   categoryLock: CardCategory | null
   status: CardStatus
   /** ISO 8601, always UTC. */

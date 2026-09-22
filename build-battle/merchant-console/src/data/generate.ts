@@ -194,56 +194,36 @@ function generatePayouts(payments: Payment[]): Payout[] {
 }
 
 /**
- * Seed cards. Fixed rather than drawn from `rand()`, so adding them does not
- * reshuffle a single seeded payment. They hold a last four and a reference
- * only: seed data never carries a card number. Spend is 0, as on a newly
- * issued card: there are no authorizations to derive it from.
+ * Seed cards: fixed values, never `rand()`, so no seeded payment moves. They
+ * carry a last four and a reference, never a number, and 0 spend like any
+ * new card: there are no authorizations to derive spend from.
  */
+const CARD_SEEDS = [
+  ["Ad spend — Q3", "mch_01", "4817", 500_000, "advertising", "active", 41],
+  ["Design tools", "mch_04", "0932", 25_000, "software", "active", 30],
+  ["Contractor laptops", "mch_05", "6604", 1_200_000, "contractor_tools", "frozen", 22],
+  ["Hosting", "mch_07", "2275", 150_000, "software", "active", 15],
+  ["Trade show booth", "mch_09", "7148", 300_000, null, "cancelled", 9],
+  ["Newsletter software", "mch_10", "3391", 12_000, "software", "active", 2],
+] as const
+
 export function generateCards(): VirtualCard[] {
-  const seeds: {
-    nickname: string
-    merchantId: string
-    last4: string
-    spendLimit: number
-    categoryLock: VirtualCard["categoryLock"]
-    status: VirtualCard["status"]
-    daysAgo: number
-  }[] = [
-    { nickname: "Ad spend — Q3", merchantId: "mch_01", last4: "4817", spendLimit: 500_000, categoryLock: "advertising", status: "active", daysAgo: 41 },
-    { nickname: "Design tools", merchantId: "mch_04", last4: "0932", spendLimit: 25_000, categoryLock: "software", status: "active", daysAgo: 30 },
-    { nickname: "Contractor laptops", merchantId: "mch_05", last4: "6604", spendLimit: 1_200_000, categoryLock: "contractor_tools", status: "frozen", daysAgo: 22 },
-    { nickname: "Hosting", merchantId: "mch_07", last4: "2275", spendLimit: 150_000, categoryLock: "software", status: "active", daysAgo: 15 },
-    { nickname: "Trade show booth", merchantId: "mch_09", last4: "7148", spendLimit: 300_000, categoryLock: null, status: "cancelled", daysAgo: 9 },
-    { nickname: "Newsletter software", merchantId: "mch_10", last4: "3391", spendLimit: 12_000, categoryLock: "software", status: "active", daysAgo: 2 },
-  ]
-
-  return seeds.map((seed, index) => {
-    const merchant = merchants.find((m) => m.id === seed.merchantId)!
-    const createdAt = new Date(GENERATED_AT.getTime() - seed.daysAgo * 86_400_000)
-    const later = (days: number) =>
-      new Date(createdAt.getTime() + days * 86_400_000).toISOString()
-    const events: VirtualCard["events"] = [
-      { type: "issued", at: createdAt.toISOString() },
-    ]
-    if (seed.status === "frozen") events.push({ type: "frozen", at: later(3) })
-    if (seed.status === "cancelled") {
-      events.push({ type: "frozen", at: later(2) })
-      events.push({ type: "unfrozen", at: later(3) })
-      events.push({ type: "cancelled", at: later(6) })
-    }
-
+  return CARD_SEEDS.map(([nickname, merchantId, last4, spendLimit, categoryLock, status, daysAgo], i) => {
+    const at = (days: number) => new Date(GENERATED_AT.getTime() - days * 86_400_000).toISOString()
+    const events: VirtualCard["events"] = [{ type: "issued", at: at(daysAgo) }]
+    if (status !== "active") events.push({ type: status, at: at(daysAgo - 3) })
     return {
-      id: `card_${pad(index + 1)}`,
-      nickname: seed.nickname,
-      merchantId: merchant.id,
-      last4: seed.last4,
-      reference: `cref_seed_${pad(index + 1)}`,
-      spendLimit: seed.spendLimit,
+      id: `card_${pad(i + 1)}`,
+      nickname,
+      merchantId,
+      last4,
+      reference: `cref_seed_${pad(i + 1)}`,
+      spendLimit,
       spent: 0,
-      currency: merchant.currency,
-      categoryLock: seed.categoryLock,
-      status: seed.status,
-      createdAt: createdAt.toISOString(),
+      currency: merchants.find((m) => m.id === merchantId)!.currency,
+      categoryLock,
+      status,
+      createdAt: at(daysAgo),
       events,
     }
   })
