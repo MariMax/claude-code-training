@@ -193,7 +193,7 @@ function generatePayouts(payments: Payment[]): Payout[] {
   return payouts
 }
 
-/** Fixed seed cards: never `rand()`, so no seeded payment moves. No numbers, and 0 spend. */
+/** Fixed seeds, never `rand()`, so no seeded payment moves. */
 const CARD_SEEDS = [
   ["Ad spend — Q3", "mch_01", "4817", 500_000, "advertising", "active", 41],
   ["Design tools", "mch_04", "0932", 25_000, "software", "active", 30],

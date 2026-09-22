@@ -11,12 +11,7 @@ import { notFound } from "next/navigation"
 
 export const dynamic = "force-dynamic"
 
-const EVENT_LABELS = {
-  issued: "Card issued",
-  frozen: "Frozen",
-  unfrozen: "Unfrozen",
-  cancelled: "Cancelled",
-}
+const EVENT_LABELS = { issued: "Card issued", frozen: "Frozen", unfrozen: "Unfrozen", cancelled: "Cancelled" }
 const heading = "mt-6 text-sm font-semibold text-gray-900 dark:text-gray-50"
 
 export default async function CardDetail({ params }: { params: Promise<{ id: string }> }) {

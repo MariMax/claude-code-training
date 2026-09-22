@@ -9,16 +9,14 @@ export async function GET(_request: NextRequest, { params }: Context) {
   return NextResponse.json({ card })
 }
 
-/** Status changes only. Limits are not editable after issue (NWP-202). */
+/** Status changes only; limit edits are NWP-202. */
 export async function PATCH(request: NextRequest, { params }: Context) {
   const parsed = parseCardStatus(await request.json().catch(() => null))
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
   const result = transitionCard((await params).id, parsed.value)
   if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error },
-      { status: result.reason === "not_found" ? 404 : 409 },
-    )
+    const status = result.reason === "not_found" ? 404 : 409
+    return NextResponse.json({ error: result.error }, { status })
   }
   return NextResponse.json({ card: result.card })
 }

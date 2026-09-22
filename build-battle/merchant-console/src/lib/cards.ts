@@ -1,10 +1,6 @@
 import { CardCategory, CardEvent, CardStatus } from "@/data/types"
 
-/**
- * Card rules. Numbers are on the 4242 test BIN with a Luhn check digit, so
- * nothing here resembles a real card. Only `src/data/cards.ts` generates
- * numbers; the mask and transitions are safe anywhere.
- */
+/** Card rules on the 4242 test BIN. Only `src/data/cards.ts` generates numbers. */
 export const TEST_BIN = "4242"
 
 /** The digit that makes `partial` + digit pass the Luhn check. */
@@ -30,7 +26,7 @@ function randomDigit(): number {
   return byte[0] % 10
 }
 
-/** A fresh 16-digit number on the test BIN. `digit` is injectable for tests. */
+/** A 16-digit number on the test BIN; `digit` is injectable. */
 export function generateCardNumber(digit: () => number = randomDigit): string {
   let partial = TEST_BIN
   while (partial.length < 15) partial += digit()

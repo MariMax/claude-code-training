@@ -1,9 +1,4 @@
-import {
-  CARD_CATEGORIES,
-  canTransition,
-  eventForTransition,
-  generateCardNumber,
-} from "@/lib/cards"
+import { CARD_CATEGORIES, canTransition, eventForTransition, generateCardNumber } from "@/lib/cards"
 import { merchantById } from "./merchants"
 import { store } from "./store"
 import { CardCategory, CardStatus, Currency, VirtualCard } from "./types"
@@ -24,9 +19,7 @@ const fail = (error: string) => ({ ok: false as const, error })
 
 /** Allowlists client input before the store, like `parseFilters`. */
 export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
-  if (typeof body !== "object" || body === null) {
-    return fail("Request body must be a JSON object.")
-  }
+  if (typeof body !== "object" || body === null) return fail("Request body must be a JSON object.")
   const { nickname, merchantId, spendLimit, currency, categoryLock } =
     body as Record<string, unknown>
 
@@ -35,9 +28,7 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
   if (name.length > MAX_NICKNAME_LENGTH) {
     return fail(`Nickname must be ${MAX_NICKNAME_LENGTH} characters or fewer.`)
   }
-  if (typeof merchantId !== "string" || !merchantId) {
-    return fail("Merchant is required.")
-  }
+  if (typeof merchantId !== "string" || !merchantId) return fail("Merchant is required.")
   const merchant = merchantById(merchantId)
   if (!merchant) return fail("Merchant not found.")
 
@@ -45,13 +36,10 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
     return fail("Spend limit must be a whole number of minor units.")
   }
   if (spendLimit <= 0) return fail("Spend limit must be greater than zero.")
-  if (spendLimit > MAX_SPEND_LIMIT) {
-    return fail("Spend limit cannot exceed 5,000,000 minor units.")
-  }
+  if (spendLimit > MAX_SPEND_LIMIT) return fail("Spend limit cannot exceed 5,000,000 minor units.")
   if (!CURRENCIES.includes(currency as Currency)) {
     return fail("Currency must be one of USD, EUR, or GBP.")
   }
-  // A card spends in its merchant's settlement currency.
   if (currency !== merchant.currency) {
     const code = merchant.currency
     return fail(`${merchant.name} settles in ${code}. Issue this card in ${code}.`)
@@ -75,9 +63,7 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
 
 export function parseCardStatus(body: unknown): Parsed<CardStatus> {
   const status = (body as { status?: unknown } | null)?.status as CardStatus
-  if (!STATUSES.includes(status)) {
-    return fail("Status must be one of active, frozen, or cancelled.")
-  }
+  if (!STATUSES.includes(status)) return fail("Status must be one of active, frozen, or cancelled.")
   return { ok: true, value: status }
 }
 
@@ -88,17 +74,13 @@ export function parseIdempotencyKey(key: string | null): Parsed<string | null> {
   return { ok: true, value: key }
 }
 
-/** Newest first. */
 export const listCards = () =>
   [...store.cards].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
 export const cardById = (id: string) =>
   store.cards.find((card) => card.id === id) ?? null
 
-/**
- * The only place a full number exists: returned once beside the stored
- * record, which keeps just the last four and an opaque reference.
- */
+/** Returns the number once; the stored card keeps only last4 and a reference. */
 export function issueCard(input: IssueCardInput) {
   const number = generateCardNumber()
   const createdAt = new Date().toISOString()
@@ -116,10 +98,7 @@ export function issueCard(input: IssueCardInput) {
   return { card, number }
 }
 
-/**
- * At most one card per idempotency key, so a double click or retry cannot
- * issue twice. A replay gets the original card, never the number again.
- */
+/** One card per idempotency key; a replay never gets the number again. */
 export function issueCardOnce(input: IssueCardInput, key: string | null) {
   const existing = key ? cardById(store.cardIssueKeys.get(key) ?? "") : null
   if (existing) return { replayed: true as const, card: existing }

@@ -1,10 +1,5 @@
 import { Badge } from "@/components/Badge"
-import {
-  CardStatus,
-  DisputeStatus,
-  PaymentStatus,
-  PayoutStatus,
-} from "@/data/types"
+import { CardStatus, DisputeStatus, PaymentStatus, PayoutStatus } from "@/data/types"
 import { cx } from "@/lib/utils"
 
 type AnyStatus = PaymentStatus | DisputeStatus | PayoutStatus | CardStatus

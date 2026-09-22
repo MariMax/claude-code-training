@@ -5,7 +5,7 @@ import type { CardStatus } from "@/data/types"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 
-/** Freeze, unfreeze and a two-step cancel. The server guards every transition. */
+/** Freeze, unfreeze and a two-step cancel. */
 export function CardActions(props: { id: string; nickname: string; status: CardStatus }) {
   const router = useRouter()
   const [pending, setPending] = useState(false)
@@ -72,11 +72,7 @@ export function CardActions(props: { id: string; nickname: string; status: CardS
           </>
         )}
       </div>
-      {error && (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-500">
-          {error}
-        </p>
-      )}
+      {error && <p role="alert" className="text-xs text-red-600 dark:text-red-500">{error}</p>}
     </div>
   )
 }

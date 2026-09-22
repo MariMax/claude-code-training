@@ -6,10 +6,7 @@ export function GET() {
   return NextResponse.json({ cards: listCards() })
 }
 
-/**
- * The one response that carries a full number. A repeated Idempotency-Key
- * gets 409 and the original card, without the number.
- */
+/** The one response with a full number. A replayed key gets 409 without it. */
 export async function POST(request: NextRequest) {
   const key = parseIdempotencyKey(request.headers.get("idempotency-key"))
   if (!key.ok) return NextResponse.json({ error: key.error }, { status: 400 })
@@ -23,8 +20,5 @@ export async function POST(request: NextRequest) {
   }
 
   const { card, number } = result
-  return NextResponse.json(
-    { card, number },
-    { status: 201, headers: { "cache-control": "no-store" } },
-  )
+  return NextResponse.json({ card, number }, { status: 201, headers: { "cache-control": "no-store" } })
 }

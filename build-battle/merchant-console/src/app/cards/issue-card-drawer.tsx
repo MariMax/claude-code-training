@@ -24,7 +24,6 @@ import { useState } from "react"
 const NO_LOCK = "none"
 const EMPTY = { nickname: "", merchantId: "", limit: "", category: NO_LOCK }
 
-/** A labelled control with an optional hint or error note. */
 function Field(props: { id: string; label: string; note?: string | null; error?: boolean; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5 text-sm">
@@ -79,7 +78,6 @@ export function IssueCardDrawer(props: {
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
 
   const set = (changes: Partial<typeof EMPTY>) => setForm((f) => ({ ...f, ...changes }))
-  // Cards spend in the merchant's currency; the server enforces it.
   const currency = props.merchants.find((m) => m.id === form.merchantId)?.currency
 
   const onOpenChange = (next: boolean) => {

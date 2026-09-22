@@ -21,7 +21,7 @@ Ops requests cards over Slack 12–20 times a week, and two went out with the wr
 
 ## Domain rules
 
-Sources: `build-battle/merchant-console/CLAUDE.md` ("Card rules"), `build-battle/merchant-console/.claude/rules/cards.md` ("Generate on the server", "Reveal once", "Guard the transition on the server"), and the ticket. The last two bullets were added after review.
+Sources: `build-battle/merchant-console/CLAUDE.md` ("Card rules"), `build-battle/merchant-console/.claude/rules/cards.md` ("Generate on the server", "Reveal once", "Guard the transition on the server"), and the ticket.
 
 - Money is integer minor units.
 - `4242` BIN with a Luhn digit, generated on the server.
@@ -41,24 +41,19 @@ Sources: `build-battle/merchant-console/CLAUDE.md` ("Card rules"), `build-battle
 - Routes: `/api/cards` and `/api/cards/[id]`, returning `{ error }` with 400/404/409.
 - UI: `/cards` (drawer and actions) and `/cards/[id]`.
 
-**Rejected:**
-- Server actions.
-- A decimal limit on the API.
-- Warn-only currency.
-- Invented seed spend.
+**Rejected:** server actions, a decimal limit on the API, warn-only currency, invented seed spend.
 
 ## Files and plan
 
 1. `src/lib/cards.ts` + test.
 2. `types`, `store`, `generate`, then `src/data/cards.ts` + test.
 3. Routes: check each status with curl.
-4. Review the diff.
-5. `src/app/cards/**`, nav and badge: check in the browser.
-6. `/ship-ready`, then the PR.
+4. `src/app/cards/**`, nav and badge: check in the browser.
+5. `/ship-ready`, then the PR.
 
 ## Verification
 
-Unit tests cover Luhn, the BIN, reveal-once, each rejection and the transitions. curl checks each status code. The UI flows are checked in the browser.
+Unit tests cover Luhn, the BIN, reveal-once, each rejection and the transitions; curl and the browser, per the plan, cover the rest.
 
 ## Fixed in passing
 
