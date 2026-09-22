@@ -196,7 +196,8 @@ function generatePayouts(payments: Payment[]): Payout[] {
 /**
  * Seed cards. Fixed rather than drawn from `rand()`, so adding them does not
  * reshuffle a single seeded payment. They hold a last four and a reference
- * only: seed data never carries a card number.
+ * only: seed data never carries a card number. Spend is 0, as on a newly
+ * issued card: there are no authorizations to derive it from.
  */
 export function generateCards(): VirtualCard[] {
   const seeds: {
@@ -204,17 +205,16 @@ export function generateCards(): VirtualCard[] {
     merchantId: string
     last4: string
     spendLimit: number
-    spent: number
     categoryLock: VirtualCard["categoryLock"]
     status: VirtualCard["status"]
     daysAgo: number
   }[] = [
-    { nickname: "Ad spend — Q3", merchantId: "mch_01", last4: "4817", spendLimit: 500_000, spent: 431_250, categoryLock: "advertising", status: "active", daysAgo: 41 },
-    { nickname: "Design tools", merchantId: "mch_04", last4: "0932", spendLimit: 25_000, spent: 8_999, categoryLock: "software", status: "active", daysAgo: 30 },
-    { nickname: "Contractor laptops", merchantId: "mch_05", last4: "6604", spendLimit: 1_200_000, spent: 1_150_000, categoryLock: "contractor_tools", status: "frozen", daysAgo: 22 },
-    { nickname: "Hosting", merchantId: "mch_07", last4: "2275", spendLimit: 150_000, spent: 62_340, categoryLock: "software", status: "active", daysAgo: 15 },
-    { nickname: "Trade show booth", merchantId: "mch_09", last4: "7148", spendLimit: 300_000, spent: 300_000, categoryLock: null, status: "cancelled", daysAgo: 9 },
-    { nickname: "Newsletter software", merchantId: "mch_10", last4: "3391", spendLimit: 12_000, spent: 0, categoryLock: "software", status: "active", daysAgo: 2 },
+    { nickname: "Ad spend — Q3", merchantId: "mch_01", last4: "4817", spendLimit: 500_000, categoryLock: "advertising", status: "active", daysAgo: 41 },
+    { nickname: "Design tools", merchantId: "mch_04", last4: "0932", spendLimit: 25_000, categoryLock: "software", status: "active", daysAgo: 30 },
+    { nickname: "Contractor laptops", merchantId: "mch_05", last4: "6604", spendLimit: 1_200_000, categoryLock: "contractor_tools", status: "frozen", daysAgo: 22 },
+    { nickname: "Hosting", merchantId: "mch_07", last4: "2275", spendLimit: 150_000, categoryLock: "software", status: "active", daysAgo: 15 },
+    { nickname: "Trade show booth", merchantId: "mch_09", last4: "7148", spendLimit: 300_000, categoryLock: null, status: "cancelled", daysAgo: 9 },
+    { nickname: "Newsletter software", merchantId: "mch_10", last4: "3391", spendLimit: 12_000, categoryLock: "software", status: "active", daysAgo: 2 },
   ]
 
   return seeds.map((seed, index) => {
@@ -239,7 +239,7 @@ export function generateCards(): VirtualCard[] {
       last4: seed.last4,
       reference: `cref_seed_${pad(index + 1)}`,
       spendLimit: seed.spendLimit,
-      spent: seed.spent,
+      spent: 0,
       currency: merchant.currency,
       categoryLock: seed.categoryLock,
       status: seed.status,

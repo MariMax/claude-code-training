@@ -51,6 +51,22 @@ export function maskCardNumber(last4: string): string {
   return `•••• ${last4}`
 }
 
+/** Past this share of the limit, spend is shown as a warning. */
+export const SPEND_WARNING_PERCENT = 80
+
+/**
+ * Spend against a limit, for display: a whole percentage capped at 100, and
+ * whether it is past the warning threshold. Both inputs are minor units.
+ */
+export function spendProgress(
+  spent: number,
+  limit: number,
+): { percent: number; nearLimit: boolean } {
+  if (limit <= 0) return { percent: 0, nearLimit: false }
+  const percent = Math.min(100, Math.round((spent * 100) / limit))
+  return { percent, nearLimit: spent * 100 > limit * SPEND_WARNING_PERCENT }
+}
+
 /** The category allowlist, in display order, with the label ops sees. */
 export const CARD_CATEGORY_LABELS: Record<CardCategory, string> = {
   advertising: "Advertising",

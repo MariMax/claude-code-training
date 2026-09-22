@@ -8,6 +8,7 @@ import {
   isValidLuhn,
   luhnCheckDigit,
   maskCardNumber,
+  spendProgress,
 } from "./cards"
 
 describe("luhnCheckDigit", () => {
@@ -85,5 +86,26 @@ describe("card categories", () => {
     for (const category of CARD_CATEGORIES) {
       expect(CARD_CATEGORY_LABELS[category]).toBeTruthy()
     }
+  })
+})
+
+describe("spendProgress", () => {
+  it("is zero and calm for an unspent card", () => {
+    expect(spendProgress(0, 25000)).toEqual({ percent: 0, nearLimit: false })
+  })
+
+  it("warns only strictly past 80% of the limit", () => {
+    expect(spendProgress(20000, 25000)).toEqual({ percent: 80, nearLimit: false })
+    expect(spendProgress(20001, 25000).nearLimit).toBe(true)
+  })
+
+  it("decides the warning on exact spend, not the rounded percent", () => {
+    expect(spendProgress(8040, 10000)).toEqual({ percent: 80, nearLimit: true })
+    expect(spendProgress(7999, 10000).nearLimit).toBe(false)
+  })
+
+  it("caps the percentage at 100 and handles a zero limit", () => {
+    expect(spendProgress(30000, 25000)).toEqual({ percent: 100, nearLimit: true })
+    expect(spendProgress(100, 0)).toEqual({ percent: 0, nearLimit: false })
   })
 })

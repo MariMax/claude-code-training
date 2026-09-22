@@ -112,7 +112,11 @@ export interface VirtualCard {
   reference: string
   /** Integer minor units. Never a float. */
   spendLimit: number
-  /** Integer minor units spent so far, in the card's currency. */
+  /**
+   * Integer minor units spent, in the card's currency. Starts at 0 and stays
+   * 0: there is no card network, so nothing authorizes spend against a card
+   * yet. Nothing in the app invents a value for it.
+   */
   spent: number
   currency: Currency
   /** Spend is restricted to this merchant category. Null means unlocked. */

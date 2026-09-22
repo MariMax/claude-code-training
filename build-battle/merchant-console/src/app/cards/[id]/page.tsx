@@ -3,7 +3,11 @@ import { StatusBadge } from "@/components/ui/payments/StatusBadge"
 import { cardById } from "@/data/cards"
 import { merchantById } from "@/data/merchants"
 import { CardEvent } from "@/data/types"
-import { CARD_CATEGORY_LABELS, maskCardNumber } from "@/lib/cards"
+import {
+  CARD_CATEGORY_LABELS,
+  maskCardNumber,
+  spendProgress,
+} from "@/lib/cards"
 import { formatInZone } from "@/lib/dates"
 import { formatMoney } from "@/lib/money"
 import { cx } from "@/lib/utils"
@@ -20,12 +24,6 @@ const EVENT_LABELS: Record<CardEvent["type"], string> = {
   cancelled: "Cancelled",
 }
 
-/** Share of the limit used, as a whole percentage capped at 100 for display. */
-function percentUsed(spent: number, limit: number): number {
-  if (limit <= 0) return 0
-  return Math.min(100, Math.round((spent * 100) / limit))
-}
-
 export default async function CardDetail({
   params,
 }: {
@@ -37,8 +35,7 @@ export default async function CardDetail({
 
   const merchant = merchantById(card.merchantId)!
   const remaining = Math.max(0, card.spendLimit - card.spent)
-  const percent = percentUsed(card.spent, card.spendLimit)
-  const nearLimit = percent > 80
+  const { percent, nearLimit } = spendProgress(card.spent, card.spendLimit)
   const history = [...card.events].sort((a, b) => a.at.localeCompare(b.at))
 
   return (
@@ -129,6 +126,12 @@ export default async function CardDetail({
       >
         {percent}%
       </progress>
+      {card.spent === 0 && (
+        <p className="mt-2 text-sm text-gray-500">
+          No spend recorded. The console is not connected to a card network
+          yet, so spend stays at zero until authorizations exist.
+        </p>
+      )}
 
       <Divider />
 
