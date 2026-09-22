@@ -193,18 +193,12 @@ function generatePayouts(payments: Payment[]): Payout[] {
   return payouts
 }
 
-/**
- * Seed cards: fixed values, never `rand()`, so no seeded payment moves. They
- * carry a last four and a reference, never a number, and 0 spend like any
- * new card: there are no authorizations to derive spend from.
- */
+/** Fixed seed cards: never `rand()`, so no seeded payment moves. No numbers, and 0 spend. */
 const CARD_SEEDS = [
   ["Ad spend — Q3", "mch_01", "4817", 500_000, "advertising", "active", 41],
   ["Design tools", "mch_04", "0932", 25_000, "software", "active", 30],
   ["Contractor laptops", "mch_05", "6604", 1_200_000, "contractor_tools", "frozen", 22],
-  ["Hosting", "mch_07", "2275", 150_000, "software", "active", 15],
   ["Trade show booth", "mch_09", "7148", 300_000, null, "cancelled", 9],
-  ["Newsletter software", "mch_10", "3391", 12_000, "software", "active", 2],
 ] as const
 
 export function generateCards(): VirtualCard[] {

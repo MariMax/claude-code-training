@@ -12,13 +12,7 @@ import {
   DrawerTrigger,
 } from "@/components/Drawer"
 import { Input } from "@/components/Input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/Select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/Select"
 import type { Currency } from "@/data/types"
 import { CARD_CATEGORIES, CARD_CATEGORY_LABELS } from "@/lib/cards"
 import { parseAmountToMinorUnits } from "@/lib/money"
@@ -28,23 +22,49 @@ import { useState } from "react"
 
 /** Radix Select cannot hold an empty value, so "no lock" gets a sentinel. */
 const NO_LOCK = "none"
-const EMPTY = { nickname: "", merchantId: "", limit: "", currency: "", category: NO_LOCK }
-const errorText = "text-sm text-red-600 dark:text-red-500"
+const EMPTY = { nickname: "", merchantId: "", limit: "", category: NO_LOCK }
 
-function Field(props: { id: string; label: string; children: React.ReactNode }) {
+/** A labelled control with an optional hint or error note. */
+function Field(props: { id: string; label: string; note?: string | null; error?: boolean; children: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={props.id} className="text-sm font-medium text-gray-900 dark:text-gray-50">
+    <div className="flex flex-col gap-1.5 text-sm">
+      <label htmlFor={props.id} className="font-medium text-gray-900 dark:text-gray-50">
         {props.label}
       </label>
       {props.children}
+      {props.note && (
+        <p id={`${props.id}-note`} className={props.error ? "text-red-600 dark:text-red-500" : "text-gray-500"}>
+          {props.note}
+        </p>
+      )}
     </div>
+  )
+}
+
+function Choice(props: {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  options: [value: string, label: string][]
+  placeholder?: string
+  noted?: boolean
+}) {
+  return (
+    <Select value={props.value} onValueChange={props.onChange}>
+      <SelectTrigger id={props.id} aria-describedby={props.noted ? `${props.id}-note` : undefined}>
+        <SelectValue placeholder={props.placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {props.options.map(([value, label]) => (
+          <SelectItem key={value} value={value}>{label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 }
 
 export function IssueCardDrawer(props: {
   merchants: { id: string; name: string; currency: Currency }[]
-  currencies: Currency[]
   maxNicknameLength: number
 }) {
   const router = useRouter()
@@ -53,15 +73,14 @@ export function IssueCardDrawer(props: {
   const [limitError, setLimitError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  // Held only while the success view is open; cleared on every close.
+  // The number lives here only until the drawer closes.
   const [issued, setIssued] = useState<{ nickname: string; number: string } | null>(null)
-  // One key per form session: a retry or double click reuses it, so the
-  // server issues at most one card.
+  // One key per form: a retry or double click issues at most one card.
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID())
 
   const set = (changes: Partial<typeof EMPTY>) => setForm((f) => ({ ...f, ...changes }))
-  const merchant = props.merchants.find((m) => m.id === form.merchantId)
-  const mismatch = Boolean(merchant && form.currency && form.currency !== merchant.currency)
+  // Cards spend in the merchant's currency; the server enforces it.
+  const currency = props.merchants.find((m) => m.id === form.merchantId)?.currency
 
   const onOpenChange = (next: boolean) => {
     // Closing mid-request would drop the one response that carries the number.
@@ -82,32 +101,28 @@ export function IssueCardDrawer(props: {
     setError(null)
     setLimitError(null)
     if (!form.nickname.trim()) return setError("Nickname is required.")
-    if (!merchant) return setError("Choose a merchant.")
-    if (!form.currency) return setError("Choose a currency.")
-    if (mismatch) return setError(`Issue this card in ${merchant.currency}.`)
+    if (!currency) return setError("Choose a merchant.")
     // Converted once, here, at the boundary. The server re-validates it.
     const spendLimit = parseAmountToMinorUnits(form.limit)
     if (!spendLimit) return setLimitError("Enter an amount like 250.00, greater than zero.")
 
     setSubmitting(true)
     try {
+      const { nickname, merchantId, category } = form
       const response = await fetch("/api/cards", {
         method: "POST",
         headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
         body: JSON.stringify({
-          nickname: form.nickname,
-          merchantId: form.merchantId,
+          nickname,
+          merchantId,
           spendLimit,
-          currency: form.currency,
-          categoryLock: form.category === NO_LOCK ? null : form.category,
+          currency,
+          categoryLock: category === NO_LOCK ? null : category,
         }),
       })
       const body = await response.json().catch(() => null)
-      if (response.ok && body?.number) {
-        setIssued({ nickname: body.card.nickname, number: body.number })
-      } else {
-        setError(body?.error ?? "The card could not be issued. Try again.")
-      }
+      if (response.ok && body?.number) setIssued({ nickname: body.card.nickname, number: body.number })
+      else setError(body?.error ?? "The card could not be issued. Try again.")
     } catch {
       setError("The card could not be issued. Check your connection and try again.")
     } finally {
@@ -126,11 +141,7 @@ export function IssueCardDrawer(props: {
       <DrawerContent>
         <DrawerHeader>
           <DrawerTitle>{issued ? "Card issued" : "Issue card"}</DrawerTitle>
-          <DrawerDescription>
-            {issued
-              ? "Copy the card number now."
-              : "Create a virtual card with a spend limit for one merchant."}
-          </DrawerDescription>
+          <DrawerDescription>{issued ? "Copy the number now." : "One merchant, one limit."}</DrawerDescription>
         </DrawerHeader>
 
         {issued ? (
@@ -143,8 +154,8 @@ export function IssueCardDrawer(props: {
                   {issued.number.replace(/(\d{4})(?=\d)/g, "$1 ")}
                 </p>
               </div>
-              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-400/10 dark:text-amber-400">
-                This is the only time the full number is shown. It cannot be retrieved later.
+              <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-400/10 dark:text-amber-400">
+                The full number is shown only this once.
               </p>
             </DrawerBody>
             <DrawerFooter>
@@ -160,93 +171,52 @@ export function IssueCardDrawer(props: {
                   maxLength={props.maxNicknameLength}
                   value={form.nickname}
                   onChange={(e) => set({ nickname: e.target.value })}
-                  placeholder="Ad spend — Q3"
                 />
               </Field>
-
-              <Field id="card-merchant" label="Merchant">
-                <Select
+              <Field
+                id="card-merchant"
+                label="Merchant"
+                note={currency && `Issued in ${currency}, the merchant's settlement currency.`}
+              >
+                <Choice
+                  id="card-merchant"
                   value={form.merchantId}
-                  onValueChange={(id) =>
-                    set({ merchantId: id, currency: props.merchants.find((m) => m.id === id)!.currency })
-                  }
-                >
-                  <SelectTrigger id="card-merchant">
-                    <SelectValue placeholder="Choose a merchant" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {props.merchants.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  placeholder="Choose a merchant"
+                  options={props.merchants.map((m) => [m.id, m.name])}
+                  onChange={(merchantId) => set({ merchantId })}
+                  noted={!!currency}
+                />
               </Field>
-
-              <Field id="card-limit" label={`Spend limit${form.currency ? ` (${form.currency})` : ""}`}>
+              <Field id="card-limit" label={`Spend limit ${currency ?? ""}`} note={limitError} error>
                 <Input
                   id="card-limit"
                   inputMode="decimal"
                   autoComplete="off"
+                  placeholder="250.00"
                   value={form.limit}
                   onChange={(e) => set({ limit: e.target.value })}
-                  placeholder="250.00"
-                  hasError={limitError !== null}
-                  aria-invalid={limitError !== null}
-                  aria-describedby={limitError ? "card-limit-error" : undefined}
+                  hasError={!!limitError}
+                  aria-invalid={!!limitError}
+                  aria-describedby={limitError ? "card-limit-note" : undefined}
                 />
-                {limitError && <p id="card-limit-error" className={errorText}>{limitError}</p>}
               </Field>
-
-              <Field id="card-currency" label="Currency">
-                <Select value={form.currency} onValueChange={(currency) => set({ currency })}>
-                  <SelectTrigger
-                    id="card-currency"
-                    hasError={mismatch}
-                    aria-invalid={mismatch}
-                    aria-describedby={mismatch ? "card-currency-error" : undefined}
-                  >
-                    <SelectValue placeholder="Choose a currency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {props.currencies.map((code) => (
-                      <SelectItem key={code} value={code}>{code}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {mismatch && (
-                  <p id="card-currency-error" className={errorText}>
-                    {merchant!.name} settles in {merchant!.currency}. Cards for this merchant must be
-                    issued in {merchant!.currency}.
-                  </p>
-                )}
+              <Field
+                id="card-category"
+                label="Merchant category lock"
+                note="Only this category can spend. Fixed at issue."
+              >
+                <Choice
+                  id="card-category"
+                  value={form.category}
+                  options={[[NO_LOCK, "No lock"], ...CARD_CATEGORIES.map((c) => [c, CARD_CATEGORY_LABELS[c]] as [string, string])]}
+                  onChange={(category) => set({ category })}
+                  noted
+                />
               </Field>
-
-              <Field id="card-category" label="Merchant category lock">
-                <Select value={form.category} onValueChange={(category) => set({ category })}>
-                  <SelectTrigger id="card-category" aria-describedby="card-category-hint">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_LOCK}>No lock</SelectItem>
-                    {CARD_CATEGORIES.map((code) => (
-                      <SelectItem key={code} value={code}>{CARD_CATEGORY_LABELS[code]}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p id="card-category-hint" className="text-sm text-gray-500">
-                  Only spend in this category is allowed. Set at issue; it cannot be changed later.
-                </p>
-              </Field>
-
-              {error && <p role="alert" className={errorText}>{error}</p>}
+              {error && <p role="alert" className="text-sm text-red-600 dark:text-red-500">{error}</p>}
             </DrawerBody>
             <DrawerFooter>
-              <Button
-                type="submit"
-                isLoading={submitting}
-                loadingText="Issuing..."
-                disabled={submitting || mismatch}
-              >
+              <Button type="submit" isLoading={submitting} loadingText="Issuing..." disabled={submitting}>
                 Issue card
               </Button>
             </DrawerFooter>

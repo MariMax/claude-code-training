@@ -1,6 +1,5 @@
 import { lastUtcDays, utcDayKey } from "@/lib/dates"
 import { GENERATED_AT } from "./generate"
-import { filterPayments } from "./queries"
 import { store } from "./store"
 
 /**
@@ -21,12 +20,12 @@ export function dailyVolume(days = 30): DailyVolume[] {
     keys.map((date) => [date, { date, captured: 0, refunded: 0 }]),
   )
 
-  // Bucket by UTC day and accumulate integer minor units, never floats.
-  for (const payment of filterPayments({ status: "captured" })) {
+  // UTC days, integer minor units.
+  for (const payment of store.payments) {
     const bucket = buckets.get(utcDayKey(payment.createdAt))
-    if (bucket) bucket.captured += payment.amount
+    if (bucket && payment.status === "captured") bucket.captured += payment.amount
   }
-  // Refunds land on the day they happened, for the amount actually refunded.
+  // Refunds on the day, and for the amount, they happened.
   for (const refund of store.refunds) {
     const bucket = buckets.get(utcDayKey(refund.createdAt))
     if (bucket) bucket.refunded += refund.amount
@@ -35,20 +34,21 @@ export function dailyVolume(days = 30): DailyVolume[] {
   return [...buckets.values()]
 }
 
-/** Every lookup goes through the one query builder, never store.payments. */
 export function headlineMetrics() {
-  const all = filterPayments({})
-  const captured = filterPayments({ status: "captured" })
-  const refunded = filterPayments({ status: "refunded" })
+  const captured = store.payments.filter((p) => p.status === "captured")
+  const refunded = store.payments.filter((p) => p.status === "refunded")
 
   // Gross volume is everything that moved through the platform.
   const grossVolume =
     captured.reduce((sum, p) => sum + p.amount, 0) +
     refunded.reduce((sum, p) => sum + p.amount, 0)
 
-  // Derived once: the rate and the "n/total" fraction both come from this count.
-  const authorizedCount = all.length - filterPayments({ status: "failed" }).length
-  const authRate = all.length ? authorizedCount / all.length : 0
+  const authorized = store.payments.filter(
+    (p) => p.status !== "failed",
+  ).length
+  const authRate = store.payments.length
+    ? authorized / store.payments.length
+    : 0
 
   const openDisputes = store.disputes.filter(
     (d) => d.status === "needs_response" || d.status === "under_review",
@@ -57,8 +57,7 @@ export function headlineMetrics() {
   return {
     grossVolume,
     authRate,
-    authorizedCount,
-    paymentCount: all.length,
+    paymentCount: store.payments.length,
     openDisputes: openDisputes.length,
     disputedAmount: openDisputes.reduce((sum, d) => sum + d.amount, 0),
   }

@@ -8,7 +8,7 @@ import { merchantById } from "./merchants"
 import { store } from "./store"
 import { CardCategory, CardStatus, Currency, VirtualCard } from "./types"
 
-export const CARD_CURRENCIES: readonly Currency[] = ["USD", "EUR", "GBP"]
+const CURRENCIES: readonly Currency[] = ["USD", "EUR", "GBP"]
 const STATUSES: readonly CardStatus[] = ["active", "frozen", "cancelled"]
 /** 5,000,000 minor units: $50,000.00. */
 export const MAX_SPEND_LIMIT = 5_000_000
@@ -48,7 +48,7 @@ export function parseIssueCard(body: unknown): Parsed<IssueCardInput> {
   if (spendLimit > MAX_SPEND_LIMIT) {
     return fail("Spend limit cannot exceed 5,000,000 minor units.")
   }
-  if (!CARD_CURRENCIES.includes(currency as Currency)) {
+  if (!CURRENCIES.includes(currency as Currency)) {
     return fail("Currency must be one of USD, EUR, or GBP.")
   }
   // A card spends in its merchant's settlement currency.

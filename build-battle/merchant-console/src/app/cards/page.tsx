@@ -8,7 +8,7 @@ import {
   TableRow,
 } from "@/components/Table"
 import { StatusBadge } from "@/components/ui/payments/StatusBadge"
-import { CARD_CURRENCIES, listCards, MAX_NICKNAME_LENGTH } from "@/data/cards"
+import { listCards, MAX_NICKNAME_LENGTH } from "@/data/cards"
 import { merchantById, merchants } from "@/data/merchants"
 import { CARD_CATEGORY_LABELS, maskCardNumber } from "@/lib/cards"
 import { formatDate } from "@/lib/dates"
@@ -17,10 +17,9 @@ import Link from "next/link"
 import { CardActions } from "./card-actions"
 import { IssueCardDrawer } from "./issue-card-drawer"
 
-// Cards change on every issue or status change; never serve a cached render.
 export const dynamic = "force-dynamic"
 
-const COLUMNS = ["Card", "Merchant", "Number", "Category", "Spend limit", "Status", "Created"]
+const COLUMNS = ["Card", "Merchant", "Number", "Category", "Spend limit", "Status", "Created", ""]
 
 export default function CardsPage() {
   const cards = listCards()
@@ -29,11 +28,7 @@ export default function CardsPage() {
     <section aria-label="Virtual cards">
       <div className="flex flex-col justify-between gap-2 px-4 py-6 sm:flex-row sm:items-center sm:p-6">
         <h1 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Virtual cards</h1>
-        <IssueCardDrawer
-          merchants={merchants}
-          currencies={[...CARD_CURRENCIES]}
-          maxNicknameLength={MAX_NICKNAME_LENGTH}
-        />
+        <IssueCardDrawer merchants={merchants} maxNicknameLength={MAX_NICKNAME_LENGTH} />
       </div>
 
       <TableRoot className="border-t border-gray-200 dark:border-gray-800">
@@ -42,18 +37,15 @@ export default function CardsPage() {
             <TableRow>
               {COLUMNS.map((column) => (
                 <TableHeaderCell key={column} className={column === "Spend limit" ? "text-right" : ""}>
-                  {column}
+                  {column || <span className="sr-only">Actions</span>}
                 </TableHeaderCell>
               ))}
-              <TableHeaderCell>
-                <span className="sr-only">Actions</span>
-              </TableHeaderCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {cards.length === 0 && (
               <TableRow>
-                <TableCell colSpan={COLUMNS.length + 1} className="py-16 text-center">
+                <TableCell colSpan={COLUMNS.length} className="py-16 text-center">
                   <p className="font-medium text-gray-900 dark:text-gray-50">No cards issued yet</p>
                   <p className="mt-1 text-gray-500">
                     Use Issue card to create a virtual card for a merchant.

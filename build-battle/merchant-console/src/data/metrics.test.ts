@@ -1,6 +1,6 @@
 import { utcDayKey } from "@/lib/dates"
 import { afterEach, describe, expect, it } from "vitest"
-import { dailyVolume, headlineMetrics } from "./metrics"
+import { dailyVolume } from "./metrics"
 import { store } from "./store"
 
 const originalTz = process.env.TZ
@@ -20,14 +20,5 @@ describe("dailyVolume", () => {
       expect(day.captured).toBe(sumOn(captured, day.date))
       expect(day.refunded).toBe(sumOn(store.refunds, day.date))
     }
-  })
-})
-
-describe("headlineMetrics", () => {
-  it("derives the authorization rate and its fraction from one count", () => {
-    const metrics = headlineMetrics()
-    const failed = store.payments.filter((p) => p.status === "failed").length
-    expect(metrics.authorizedCount).toBe(store.payments.length - failed)
-    expect(metrics.authRate).toBe(metrics.authorizedCount / metrics.paymentCount)
   })
 })

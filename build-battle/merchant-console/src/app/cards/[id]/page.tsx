@@ -9,7 +9,6 @@ import { cx } from "@/lib/utils"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 
-// Status changes at runtime through the API; never serve a stale render.
 export const dynamic = "force-dynamic"
 
 const EVENT_LABELS = {
@@ -35,7 +34,6 @@ export default async function CardDetail({ params }: { params: Promise<{ id: str
     ["Spent", money(card.spent)],
     ["Remaining", money(Math.max(0, card.spendLimit - card.spent))],
     ["Reference", card.reference, true],
-    ["Created (UTC)", card.createdAt, true],
     [`Created (${merchant.timezone})`, formatInZone(card.createdAt, merchant.timezone)],
   ]
 
@@ -91,11 +89,6 @@ export default async function CardDetail({ params }: { params: Promise<{ id: str
           </li>
         ))}
       </ol>
-      {card.status === "cancelled" && (
-        <p className="mt-6 text-sm text-gray-500">
-          Cancelled cards are terminal and cannot be reactivated.
-        </p>
-      )}
     </div>
   )
 }

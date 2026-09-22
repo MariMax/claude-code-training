@@ -4,94 +4,69 @@
 
 ## Problem
 
-Ops asks the platform team for virtual cards over Slack 12–20 times a week, and last month two went out with the wrong limit. Ops needs to issue, list and open cards in the console.
+Ops requests cards over Slack 12–20 times a week, and two went out with the wrong limit last month. They need to issue, list and open cards in the console.
 
-## Current state
+## Current state (under `build-battle/merchant-console/`)
 
-Paths under `build-battle/merchant-console/`.
-
-- No cards code exists (`CLAUDE.md` Layout).
-- `src/data/types.ts:1`: `Currency` is the ticket's allowlist.
-- `src/data/store.ts:16-34`: the store is held on `globalThis`.
-- `src/data/generate.ts:20-35`: one shared PRNG, so seed cards must not draw from it.
-- `src/data/queries.ts:18`: `parseFilters` is the house allowlist pattern. `:45` is the one payment builder.
-- Helpers to reuse:
-  - `src/lib/money.ts:15,46`: `formatMoney`, `parseAmountToMinorUnits`
-  - `src/lib/dates.ts:7,22`: `utcDayKey`, `formatInZone`
-- No API error shape exists, so this ticket sets `{ error }`.
+- There are no cards yet (`CLAUDE.md` Layout).
+- `src/data/types.ts:1`: `Currency` is the allowlist.
+- `store.ts:16`: the store lives on `globalThis`.
+- `generate.ts:20`: a shared PRNG, so seeds must not use it.
+- `queries.ts:18`: `parseFilters` is the validation pattern. `:45` is the one payment builder.
+- Reuse `money.ts:15,46` and `dates.ts:7,22`.
+- No API error shape exists.
 - Docs vs code:
-  - `components.md` names a `Dialog` that doesn't exist, so `Drawer` is used.
-  - Seed data is generated in code, not JSON.
+  - The rules' `Dialog` doesn't exist, so `Drawer` is used.
+  - Seeds are code, not JSON.
 
 ## Domain rules
 
-| Rule | Source |
-| --- | --- |
-| Integer minor units, formatted once | `CLAUDE.md` #1 |
-| `4242` BIN, Luhn digit, generated on the server | `cards.md` |
-| Full number only in the creation response; store `last4` and a reference | ticket rule 2 |
-| `active ⇄ frozen`, either → `cancelled`, terminal, guarded on the server | `cards.md` |
-| Reject missing merchant, limit ≤ 0 or > 5,000,000, currency outside USD/EUR/GBP | ticket |
-| Currency must equal the merchant's; spend is 0 until authorizations exist | review |
+Rules come from `CLAUDE.md`, `.claude/rules/cards.md` and the ticket. The last two bullets were added after review.
+
+- Money is integer minor units.
+- `4242` BIN with a Luhn digit, generated on the server.
+- The number appears once. Store `last4` and a reference.
+- `active ⇄ frozen`, either can go to `cancelled`, and `cancelled` is terminal. The server guards it.
+- Reject:
+  - a missing merchant
+  - a limit ≤ 0 or > 5,000,000
+  - a currency outside USD/EUR/GBP
+  - a currency other than the merchant's
+- Spend stays 0 until authorizations exist.
 
 ## Approach
 
-- `src/lib/cards.ts` is pure: Luhn, generator, mask, transitions, `spendProgress`, categories.
-- `src/data/cards.ts` owns the logic: `parseIssueCard`, `issueCardOnce` (keyed by `Idempotency-Key`) and `transitionCard`.
-- Routes: `GET/POST /api/cards` and `GET/PATCH /api/cards/[id]`.
-- UI:
-  - `/cards`: the table, an issue drawer, and row actions that refresh without a reload.
-  - `/cards/[id]`: fields, spend and history.
+- `src/lib/cards.ts` holds the pure rules.
+- `src/data/cards.ts` holds validation, `issueCardOnce` (keyed by `Idempotency-Key`) and `transitionCard`.
+- Routes: `/api/cards` and `/api/cards/[id]`, returning `{ error }` with 400/404/409.
+- UI: `/cards` (drawer and actions) and `/cards/[id]`.
 
 **Rejected:**
-- Server actions: validation is proven against a route.
-- A decimal limit on the API: the server would have to parse money.
-- A currency warning instead of rejection: it doesn't stop the mistake.
-- Invented seed spend: it's spend with no source.
+- Server actions.
+- A decimal limit on the API.
+- Warn-only currency.
+- Invented seed spend.
 
-## File map
+## Files and plan
 
-| File | Why |
-| --- | --- |
-| `src/lib/cards.ts` + test | Card rules |
-| `src/data/cards.ts` + test | Validation, issue, transition |
-| `types.ts`, `store.ts`, `generate.ts` | Card type, slice, seeds |
-| `src/app/api/cards/**` | Routes |
-| `src/app/cards/**` | List, drawer, actions, detail, not-found, error |
-| `StatusBadge`, `siteConfig`, `AppSidebar` | Statuses, nav |
-
-## Plan
-
-1. Library and tests.
-2. Store, seeds, data layer and tests.
-3. Routes, checked with curl.
-4. Review the server diff.
-5. UI, checked in the browser.
+1. `src/lib/cards.ts` + test.
+2. `types`, `store`, `generate`, then `src/data/cards.ts` + test.
+3. Routes: check each status with curl.
+4. Review the diff.
+5. `src/app/cards/**`, nav and badge: check in the browser.
 6. `/ship-ready`, then the PR.
 
 ## Verification
 
-| Criterion | Proof |
-| --- | --- |
-| Numbers | 1,000 generated numbers match `^4242\d{12}$` and pass Luhn |
-| Reveal once | No number on the record; no 16-digit run in list or detail |
-| Validation | Unit tests plus curl for each rejection |
-| UI | Issue, freeze, unfreeze and cancel in the browser |
+Unit tests cover Luhn, the BIN, reveal-once, each rejection and the transitions. curl checks each status code. The UI flows are checked in the browser.
 
 ## Fixed in passing
 
-- `src/data/metrics.ts` `dailyVolume`: fixed local-date buckets, float sums, and refunds taken from payments. It now uses `utcDayKey`, integer minor units, and `store.refunds`.
-- `headlineMetrics` now goes through `filterPayments`.
-- `MetricsCards` now derives the authorization fraction once.
-- Left for other work:
-  - The string sort and hand-built filters belong to NWP-101.
-  - Cross-currency totals need a product decision.
+- `metrics.ts` `dailyVolume` used local-date buckets, float sums and refunds taken from payments. It now uses UTC, minor units and `store.refunds`.
+- Metrics now go through `filterPayments`.
+- The auth fraction is derived once.
+- The string sort and hand-built filters are left to NWP-101.
 
 ## Out of scope
 
-- Persistence (NWP-203).
-- Auth.
-- Card network calls.
-- Editing a limit (NWP-202).
-- Enforcing the category lock on real spend.
-- Open question: the ticket's `•••• 4242` is read as `•••• <last4>`, as in `src/app/payments/page.tsx:123`.
+Persistence (NWP-203), auth, network calls, limit edits (NWP-202) and enforcing the category lock. `•••• 4242` is read as `•••• <last4>`, as in `payments/page.tsx:123`.
