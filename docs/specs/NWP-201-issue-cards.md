@@ -44,7 +44,8 @@ All paths are relative to `build-battle/merchant-console/`.
 | "Reject a missing merchant, a zero or negative limit, a limit above 5,000,000 minor units, and any currency outside USD, EUR, GBP." | ticket, core | Criterion 6 fails |
 | "Return the same error shape everywhere … a message safe to show a user." | `.claude/rules/api-routes.md` | The UI can't show the error consistently |
 | "Storage and bucketing are UTC. Display converts to the merchant's timezone." | `CLAUDE.md` #2 | History timestamps are wrong for Berlin and London |
-| Card currency defaults to the merchant's currency, with a warning on mismatch | Decided in planning | Ops picks the wrong currency unnoticed |
+| A card's currency must equal its merchant's settlement currency, enforced on the server | Revised after review (planning first chose warn-only) | Ops picks the wrong currency and the card is issued anyway |
+| Spend is honest: it starts at 0 and stays 0, because nothing records authorizations | Revised after review | Invented spend makes the limit and the warning bar meaningless |
 
 ## Approach
 
@@ -55,7 +56,7 @@ The server does the work, and the UI only renders. A pure module, `src/lib/cards
 - `GET /api/cards/[id]` returns one card
 - `PATCH /api/cards/[id]` takes `{ status }` and runs the state machine. An illegal move returns 409
 
-Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes `spendLimit` as an integer number of minor units. The form converts the typed `"250.00"` once, with `parseAmountToMinorUnits`. The server checks `Number.isInteger`, `> 0` and `≤ 5_000_000`. Each card carries `spent` (minor units) and `events` (`issued | frozen | unfrozen | cancelled`, with UTC `at`). Six fixed seed cards are added in `generate.ts` (`generateCards`). They don't draw from `rand()` at all, so payments don't shift. They cover a spread of spend (one past 80%), one frozen card and one cancelled card. New cards start with `spent: 0`. The UI has three parts:
+Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes `spendLimit` as an integer number of minor units. The form converts the typed `"250.00"` once, with `parseAmountToMinorUnits`. The server checks `Number.isInteger`, `> 0` and `≤ 5_000_000`. Each card carries `spent` (minor units) and `events` (`issued | frozen | unfrozen | cancelled`, with UTC `at`). Six fixed seed cards are added in `generate.ts` (`generateCards`). They don't draw from `rand()` at all, so payments don't shift. They include one frozen card and one cancelled card. Every card, seeded or new, has `spent: 0`. There is no card network to record authorizations, so spend is never invented, and the detail page says so. The 80% warning threshold lives in `spendProgress` (`src/lib/cards.ts`) and is unit-tested. The server also rejects a currency that differs from the merchant's settlement currency. The UI has three parts:
 
 - **`/cards`**: a server page with a table and a written empty state. It has an "Issue card" button that opens a `Drawer` form, and per-row Freeze, Unfreeze and Cancel buttons. Each button calls PATCH, then `router.refresh()`, so the page never fully reloads.
 - **The success view**: it shows the full number once. State is cleared when the drawer closes.
@@ -65,7 +66,8 @@ Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes 
 
 - Server actions instead of route handlers. The ticket's validation criterion is checked against a route (curl), and `api-routes.md` defines the error contract for route handlers.
 - Accepting the limit as a decimal string on the API. That makes the server parse money strings, and the money rules say to convert once, at the boundary. The form is that boundary.
-- Hard-rejecting a currency that doesn't match the merchant. Ops legitimately pays EUR vendors from USD merchants, so a warning is enough.
+- Warning on a currency mismatch instead of rejecting it. This was the first plan. Review pointed out that a warning doesn't stop the wrong-currency mistake the ticket describes, so the server now rejects it.
+- Hand-picked seed spend to show off the amber bar. That's spend with no source; the threshold is proven by `spendProgress` tests instead.
 
 ## File map
 
@@ -75,7 +77,7 @@ Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes 
 | `src/lib/cards.ts` | add | Luhn digit and check, `generateCardNumber`, `maskCardNumber`, `canTransition` and the transition table |
 | `src/lib/cards.test.ts` | add | Luhn validity, the `4242` prefix, 16 digits, the mask, and every legal and illegal transition |
 | `src/data/store.ts` | change | Add a `cards: VirtualCard[]` slice |
-| `src/data/generate.ts` | change | `generateCards()`: fixed seed cards that don't touch `rand()`, so payments stay identical |
+| `src/data/generate.ts` | change | `generateCards()`: fixed seed cards that don't touch `rand()`, so payments stay identical, all with zero spend |
 | `src/data/cards.ts` | add | `parseIssueCard` (including the optional `categoryLock` allowlist), `parseIdempotencyKey`, `issueCard`, `issueCardOnce`, `listCards`, `cardById`, `transitionCard` |
 | `src/data/cards.test.ts` | add | Every validation rejection and the reveal-once behaviour (the number is never on the stored record) |
 | `src/app/api/cards/route.ts` | add | GET list, POST issue, with an optional `Idempotency-Key` header (a replay returns 409 without the number) |
@@ -130,7 +132,7 @@ Every error is `{ error: string }` with a 400, 404 or 409 status. The API takes 
 
 - Persistence (NWP-203), auth and roles, network calls, and editing a limit (NWP-202).
 - Enforcing the category lock on real spend. There is no card network (see above), so the lock is recorded and displayed, not applied to authorizations.
-- Added in a second pass after the first PR: the amber spend bar, the merchant category lock, the server-side idempotency key, and written not-found and error pages.
+- Added in a second pass after the first PR: the amber spend bar, the merchant category lock, the server-side idempotency key, and written not-found and error pages. A third pass enforced the merchant currency on the server and removed invented seed spend.
 
 ## Open questions
 
