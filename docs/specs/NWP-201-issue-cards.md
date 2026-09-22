@@ -16,12 +16,12 @@ Ops requests cards over Slack 12–20 times a week, and two went out with the wr
 - Reuse `money.ts:15,46` and `dates.ts:7,22`.
 - No API error shape exists.
 - Docs vs code:
-  - The rules' `Dialog` doesn't exist, so `Drawer` is used.
+  - `.claude/rules/components.md` names a `Dialog` that doesn't exist, so `Drawer` is used.
   - Seeds are code, not JSON.
 
 ## Domain rules
 
-Rules come from `CLAUDE.md`, `.claude/rules/cards.md` and the ticket. The last two bullets were added after review.
+Sources: `build-battle/merchant-console/CLAUDE.md` ("Card rules"), `build-battle/merchant-console/.claude/rules/cards.md` ("Generate on the server", "Reveal once", "Guard the transition on the server"), and the ticket. The last two bullets were added after review.
 
 - Money is integer minor units.
 - `4242` BIN with a Luhn digit, generated on the server.
