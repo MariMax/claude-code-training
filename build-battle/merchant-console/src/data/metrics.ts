@@ -1,5 +1,6 @@
 import { lastUtcDays, utcDayKey } from "@/lib/dates"
 import { GENERATED_AT } from "./generate"
+import { filterPayments } from "./queries"
 import { store } from "./store"
 
 /**
@@ -21,9 +22,9 @@ export function dailyVolume(days = 30): DailyVolume[] {
   )
 
   // Bucket by UTC day and accumulate integer minor units, never floats.
-  for (const payment of store.payments) {
+  for (const payment of filterPayments({ status: "captured" })) {
     const bucket = buckets.get(utcDayKey(payment.createdAt))
-    if (bucket && payment.status === "captured") bucket.captured += payment.amount
+    if (bucket) bucket.captured += payment.amount
   }
   // Refunds land on the day they happened, for the amount actually refunded.
   for (const refund of store.refunds) {
@@ -34,21 +35,20 @@ export function dailyVolume(days = 30): DailyVolume[] {
   return [...buckets.values()]
 }
 
+/** Every lookup goes through the one query builder, never store.payments. */
 export function headlineMetrics() {
-  const captured = store.payments.filter((p) => p.status === "captured")
-  const refunded = store.payments.filter((p) => p.status === "refunded")
+  const all = filterPayments({})
+  const captured = filterPayments({ status: "captured" })
+  const refunded = filterPayments({ status: "refunded" })
 
   // Gross volume is everything that moved through the platform.
   const grossVolume =
     captured.reduce((sum, p) => sum + p.amount, 0) +
     refunded.reduce((sum, p) => sum + p.amount, 0)
 
-  const authorized = store.payments.filter(
-    (p) => p.status !== "failed",
-  ).length
-  const authRate = store.payments.length
-    ? authorized / store.payments.length
-    : 0
+  // Derived once: the rate and the "n/total" fraction both come from this count.
+  const authorizedCount = all.length - filterPayments({ status: "failed" }).length
+  const authRate = all.length ? authorizedCount / all.length : 0
 
   const openDisputes = store.disputes.filter(
     (d) => d.status === "needs_response" || d.status === "under_review",
@@ -57,7 +57,8 @@ export function headlineMetrics() {
   return {
     grossVolume,
     authRate,
-    paymentCount: store.payments.length,
+    authorizedCount,
+    paymentCount: all.length,
     openDisputes: openDisputes.length,
     disputedAmount: openDisputes.reduce((sum, d) => sum + d.amount, 0),
   }

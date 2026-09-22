@@ -69,7 +69,7 @@ function buildMetrics(): Metric[] {
       label: "Authorization rate",
       value: metrics.authRate,
       percentage: `${(metrics.authRate * 100).toFixed(1)}%`,
-      fraction: `${compact(total - (total - Math.round(metrics.authRate * total)))}/${compact(total)}`,
+      fraction: `${compact(metrics.authorizedCount)}/${compact(total)}`,
     },
     {
       label: "Capture rate",
